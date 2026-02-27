@@ -11,16 +11,16 @@ export function TokenBadge({ tokens, maxTokens, className }: TokenBadgeProps) {
 
   const colorClass =
     intensity > 0.8
-      ? "text-red-400"
+      ? "text-red-500 dark:text-red-400"
       : intensity > 0.5
-        ? "text-orange-400"
+        ? "text-amber-500 dark:text-amber-400"
         : intensity > 0.2
-          ? "text-yellow-400"
-          : "text-muted-foreground";
+          ? "text-yellow-500 dark:text-yellow-400"
+          : "text-muted-foreground/60";
 
   return (
-    <span className={cn("text-xs font-mono tabular-nums", colorClass, className)}>
-      ~{formatTokenCount(tokens)}
+    <span className={cn("text-[10px] font-mono tabular-nums", colorClass, className)}>
+      {formatTokenCount(tokens)}
     </span>
   );
 }

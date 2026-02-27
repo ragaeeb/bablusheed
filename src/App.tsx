@@ -3,7 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
 import { readTextFile } from "@tauri-apps/plugin-fs";
 import { load } from "@tauri-apps/plugin-store";
-import { FolderOpen, Loader2, Package } from "lucide-react";
+import { FolderOpen, Loader2, Package2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { EmptyState } from "@/components/EmptyState";
 import { FileTree } from "@/components/FileTree";
@@ -13,7 +13,6 @@ import { PackOptions } from "@/components/PackOptions";
 import { TitleBar } from "@/components/TitleBar";
 import { TokenBar } from "@/components/TokenBar";
 import { TopHeavyFiles } from "@/components/TopHeavyFiles";
-import { Button } from "@/components/ui/button";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useFileTree } from "@/hooks/useFileTree";
 import { usePackager } from "@/hooks/usePackager";
@@ -36,7 +35,7 @@ const DEFAULT_PACK_OPTIONS: PackOptionsType = {
 };
 
 export default function App() {
-  const [theme, setTheme] = useState<"dark" | "light">("dark");
+  const [theme, setTheme] = useState<"dark" | "light">("light");
   const [projectPath, setProjectPath] = useState<string | null>(null);
   const [projectName, setProjectName] = useState<string>("");
   const [isLoadingTree, setIsLoadingTree] = useState(false);
@@ -247,9 +246,9 @@ export default function App() {
   const totalFiles = countFiles(rootNodes);
 
   return (
-    <TooltipProvider delayDuration={400}>
+    <TooltipProvider delayDuration={300}>
       <div className="flex flex-col h-screen bg-background text-foreground overflow-hidden">
-        {/* Custom title bar */}
+        {/* Title bar */}
         <TitleBar
           theme={theme}
           onToggleTheme={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
@@ -260,31 +259,34 @@ export default function App() {
           <EmptyState onOpenProject={handleOpenProject} isDragging={isDragging} />
         ) : (
           <div className="flex flex-1 overflow-hidden">
-            {/* LEFT: File Tree (280px) */}
-            <div className="w-[280px] shrink-0 flex flex-col border-r border-border/50 overflow-hidden">
+            {/* LEFT: File Tree */}
+            <div className="w-[260px] shrink-0 flex flex-col border-r border-border overflow-hidden bg-card">
               {/* Project header */}
-              <div className="flex items-center gap-2 px-3 py-2 border-b border-border/50 shrink-0">
-                <Button
-                  variant="ghost"
-                  size="sm"
+              <div className="flex items-center gap-1.5 px-2 py-1.5 border-b border-border shrink-0 bg-muted/30">
+                <button
+                  type="button"
                   onClick={handleOpenProject}
-                  className="h-7 px-2 text-xs gap-1 text-muted-foreground hover:text-foreground"
+                  className="h-5 w-5 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shrink-0"
+                  title="Open project"
                 >
                   <FolderOpen className="h-3.5 w-3.5" />
-                </Button>
+                </button>
                 <span
-                  className="text-xs font-mono truncate text-foreground/80 font-medium"
+                  className="text-xs font-mono font-medium truncate text-foreground/80"
                   title={projectPath}
                 >
                   {projectName}
                 </span>
+                {isCalculating && (
+                  <Loader2 className="h-3 w-3 animate-spin text-muted-foreground/60 shrink-0 ml-auto" />
+                )}
               </div>
 
               {/* File tree */}
               <div className="flex-1 overflow-hidden">
                 {isLoadingTree ? (
-                  <div className="flex items-center justify-center h-24 gap-2 text-muted-foreground">
-                    <Loader2 className="h-4 w-4 animate-spin" />
+                  <div className="flex items-center justify-center h-20 gap-2 text-muted-foreground">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
                     <span className="text-xs">Loading...</span>
                   </div>
                 ) : (
@@ -305,14 +307,11 @@ export default function App() {
             </div>
 
             {/* CENTER: Controls */}
-            <div className="flex-1 flex flex-col overflow-hidden border-r border-border/50 min-w-0">
-              {/* Top bar */}
-              <div className="shrink-0 p-3 space-y-3 border-b border-border/50">
+            <div className="flex-1 flex flex-col overflow-hidden border-r border-border min-w-0 bg-background">
+              {/* Top bar: model selector + token bar */}
+              <div className="shrink-0 px-3 py-2 border-b border-border space-y-2 bg-card/50">
                 <div className="flex items-center gap-2">
                   <LLMSelector selectedId={selectedLlmId} onSelect={setSelectedLlmId} />
-                  {isCalculating && (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
-                  )}
                 </div>
                 <TokenBar
                   usedTokens={totalTokens}
@@ -324,50 +323,56 @@ export default function App() {
 
               {/* Options + Heaviest files */}
               <div className="flex-1 overflow-y-auto">
-                <div className="p-2">
-                  <PackOptions
-                    options={packOptions}
-                    onChange={setPackOptions}
-                    maxPacks={llmProfile.maxFileAttachments}
-                    selectedFiles={selectedFiles}
-                  />
-                </div>
+                <PackOptions
+                  options={packOptions}
+                  onChange={setPackOptions}
+                  maxPacks={llmProfile.maxFileAttachments}
+                  selectedFiles={selectedFiles}
+                />
 
-                <div className="px-2 pb-2">
-                  <TopHeavyFiles
-                    selectedFiles={selectedFiles}
-                    tokenMap={tokenMap}
-                    onFileClick={handleFileHighlight}
-                  />
-                </div>
+                {selectedFiles.length > 0 && (
+                  <>
+                    <div className="h-px bg-border/60 mx-2" />
+                    <TopHeavyFiles
+                      selectedFiles={selectedFiles}
+                      tokenMap={tokenMap}
+                      onFileClick={handleFileHighlight}
+                    />
+                  </>
+                )}
               </div>
 
               {/* Pack button */}
-              <div className="shrink-0 p-3 border-t border-border/50">
-                {packError && <p className="text-xs text-red-400 mb-2">{packError}</p>}
-                <Button
+              <div className="shrink-0 px-3 py-2 border-t border-border bg-card/50">
+                {packError && (
+                  <p className="text-[11px] text-red-500 dark:text-red-400 mb-1.5 font-mono">
+                    {packError}
+                  </p>
+                )}
+                <button
+                  type="button"
                   onClick={handlePack}
                   disabled={selectedFiles.length === 0 || isPacking}
-                  className="w-full gap-2"
+                  className="w-full h-8 inline-flex items-center justify-center gap-2 text-xs font-semibold rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm"
                 >
                   {isPacking ? (
                     <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
                       Packing...
                     </>
                   ) : (
                     <>
-                      <Package className="h-4 w-4" />
-                      Pack {selectedFiles.length} Files
+                      <Package2 className="h-3.5 w-3.5" />
+                      Pack {selectedFiles.length > 0 ? `${selectedFiles.length} Files` : "Files"}
                     </>
                   )}
-                </Button>
+                </button>
               </div>
             </div>
 
-            {/* RIGHT: Output Preview (slides in) */}
+            {/* RIGHT: Output Preview */}
             {showOutput && packResult && (
-              <div className="w-[380px] shrink-0 flex flex-col overflow-hidden">
+              <div className="w-[400px] shrink-0 flex flex-col overflow-hidden border-l border-border">
                 <OutputPreview
                   packResult={packResult}
                   onClose={() => {
