@@ -116,8 +116,11 @@ pub async fn pack_files(request: PackRequest) -> Result<PackResponse, String> {
     let num_packs = request.num_packs.max(1);
     let format = request.output_format.as_str();
 
-    // Estimate tokens for each file
-    let token_counts: Vec<usize> = files.iter().map(|f| estimate_tokens(&f.content)).collect();
+    // Use pre-computed token counts from frontend when available, fall back to estimate
+    let token_counts: Vec<usize> = files
+        .iter()
+        .map(|f| f.token_count.unwrap_or_else(|| estimate_tokens(&f.content)))
+        .collect();
     let total_tokens: usize = token_counts.iter().sum();
 
     // Distribute files across packs

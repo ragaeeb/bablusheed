@@ -1,19 +1,27 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Minus, Moon, Package2, Square, Sun, X } from "lucide-react";
 
+// Module-scope: created once, not on every render
+const appWindow = getCurrentWindow();
+
 interface TitleBarProps {
   theme: "dark" | "light";
   onToggleTheme: () => void;
 }
 
 export function TitleBar({ theme, onToggleTheme }: TitleBarProps) {
-  const appWindow = getCurrentWindow();
-
   return (
-    <div
-      data-tauri-drag-region
+    // biome-ignore lint/a11y/noStaticElementInteractions: header needs onMouseDown for window dragging
+    <header
       className="flex items-center justify-between h-8 px-3 bg-card border-b border-border select-none shrink-0"
       style={{ minHeight: 32 }}
+      onMouseDown={(e) => {
+        if (e.button !== 0) return;
+        const target = e.target as HTMLElement;
+        // Don't drag if clicking a button or interactive element
+        if (target.closest("button")) return;
+        appWindow.startDragging();
+      }}
     >
       {/* App title */}
       <div className="flex items-center gap-1.5 pointer-events-none">
@@ -60,6 +68,6 @@ export function TitleBar({ theme, onToggleTheme }: TitleBarProps) {
           <X className="h-3 w-3" />
         </button>
       </div>
-    </div>
+    </header>
   );
 }

@@ -1,18 +1,14 @@
 import { useCallback, useMemo, useState } from "react";
 import type { CheckState, FileNode, FileTreeNode, FlatTreeItem } from "@/types";
 
-function buildTreeNodes(
-  nodes: FileNode[],
-  depth: number,
-  tokenMap: Map<string, number>
-): FileTreeNode[] {
+function buildTreeNodes(nodes: FileNode[], depth: number): FileTreeNode[] {
   return nodes.map((node) => ({
     ...node,
     checkState: "unchecked" as CheckState,
-    tokenCount: tokenMap.get(node.path) ?? 0,
+    tokenCount: 0,
     depth,
     isExpanded: depth < 2,
-    children: node.children ? buildTreeNodes(node.children, depth + 1, tokenMap) : undefined,
+    children: node.children ? buildTreeNodes(node.children, depth + 1) : undefined,
   }));
 }
 
@@ -103,13 +99,145 @@ function updateTokensInTree(nodes: FileTreeNode[], tokenMap: Map<string, number>
   }));
 }
 
-function selectAllInTree(nodes: FileTreeNode[], selected: boolean): FileTreeNode[] {
+function selectAllInTree(
+  nodes: FileTreeNode[],
+  selected: boolean,
+  filteredPaths?: Set<string>
+): FileTreeNode[] {
   const state: "checked" | "unchecked" = selected ? "checked" : "unchecked";
-  return nodes.map((node) => ({
-    ...node,
-    checkState: state,
-    children: node.children ? selectAllInTree(node.children, selected) : undefined,
-  }));
+  return nodes.map((node) => {
+    if (filteredPaths) {
+      // Only toggle files whose paths are in the filtered set
+      if (!node.isDir && filteredPaths.has(node.path)) {
+        return {
+          ...node,
+          checkState: state,
+          children: node.children
+            ? selectAllInTree(node.children, selected, filteredPaths)
+            : undefined,
+        };
+      }
+      if (node.children) {
+        const updatedChildren = selectAllInTree(node.children, selected, filteredPaths);
+        const childState = computeParentState(updatedChildren);
+        return { ...node, children: updatedChildren, checkState: childState };
+      }
+      return node;
+    }
+    // No filter: select all
+    return {
+      ...node,
+      checkState: state,
+      children: node.children ? selectAllInTree(node.children, selected) : undefined,
+    };
+  });
+}
+
+/** Quick-select filter types */
+export type QuickFilter = "source" | "tests" | "config" | "docs" | "clear";
+
+const SOURCE_EXTENSIONS = new Set([
+  "ts",
+  "tsx",
+  "js",
+  "jsx",
+  "rs",
+  "py",
+  "go",
+  "c",
+  "cpp",
+  "h",
+  "cs",
+  "java",
+  "rb",
+  "swift",
+  "kt",
+  "scala",
+  "php",
+  "lua",
+  "r",
+  "sh",
+  "bash",
+]);
+
+const TEST_PATTERNS = [".test.", ".spec.", "__tests__", "_test.", "_spec."];
+const CONFIG_EXTENSIONS = new Set(["json", "toml", "yaml", "yml", "env", "ini", "cfg"]);
+const CONFIG_NAMES = new Set([
+  "makefile",
+  "dockerfile",
+  "docker-compose.yml",
+  "docker-compose.yaml",
+  ".env",
+  ".env.local",
+  ".env.example",
+  "vite.config.ts",
+  "vite.config.js",
+  "webpack.config.js",
+  "rollup.config.js",
+  "tsconfig.json",
+  "biome.json",
+  "eslint.config.js",
+  ".eslintrc",
+  ".prettierrc",
+  "cargo.toml",
+  "package.json",
+]);
+const DOC_EXTENSIONS = new Set(["md", "mdx", "rst", "txt"]);
+
+function isTestFile(node: FileTreeNode): boolean {
+  const lower = node.name.toLowerCase();
+  const relLower = node.relativePath.toLowerCase();
+  return TEST_PATTERNS.some((p) => lower.includes(p) || relLower.includes(p));
+}
+
+function isSourceFile(node: FileTreeNode): boolean {
+  if (isTestFile(node)) return false;
+  if (CONFIG_EXTENSIONS.has(node.extension.toLowerCase())) return false;
+  if (CONFIG_NAMES.has(node.name.toLowerCase())) return false;
+  if (DOC_EXTENSIONS.has(node.extension.toLowerCase())) return false;
+  return SOURCE_EXTENSIONS.has(node.extension.toLowerCase());
+}
+
+function isConfigFile(node: FileTreeNode): boolean {
+  const lower = node.name.toLowerCase();
+  return CONFIG_EXTENSIONS.has(node.extension.toLowerCase()) || CONFIG_NAMES.has(lower);
+}
+
+function isDocFile(node: FileTreeNode): boolean {
+  return DOC_EXTENSIONS.has(node.extension.toLowerCase());
+}
+
+function quickSelectInTree(nodes: FileTreeNode[], filter: QuickFilter): FileTreeNode[] {
+  return nodes.map((node) => {
+    if (node.isDir) {
+      const updatedChildren = node.children ? quickSelectInTree(node.children, filter) : undefined;
+      const childState = updatedChildren ? computeParentState(updatedChildren) : node.checkState;
+      return { ...node, children: updatedChildren, checkState: childState };
+    }
+
+    let shouldSelect = false;
+    if (filter === "clear") {
+      shouldSelect = false;
+    } else if (filter === "source") {
+      shouldSelect = isSourceFile(node);
+    } else if (filter === "tests") {
+      shouldSelect = isTestFile(node);
+    } else if (filter === "config") {
+      shouldSelect = isConfigFile(node);
+    } else if (filter === "docs") {
+      shouldSelect = isDocFile(node);
+    }
+
+    if (filter === "clear") {
+      return { ...node, checkState: "unchecked" };
+    }
+
+    // Additive: only select, don't deselect already-selected files
+    if (shouldSelect) {
+      return { ...node, checkState: "checked" };
+    }
+    return node;
+  });
 }
 
 export function useFileTree() {
@@ -117,8 +245,9 @@ export function useFileTree() {
   const [searchQuery, setSearchQuery] = useState("");
   const [highlightedPath, setHighlightedPath] = useState<string | null>(null);
 
-  const loadTree = useCallback((nodes: FileNode[], tokenMap: Map<string, number> = new Map()) => {
-    setRootNodes(buildTreeNodes(nodes, 0, tokenMap));
+  // 3f: removed tokenMap parameter — tokens are set via updateTokens
+  const loadTree = useCallback((nodes: FileNode[]) => {
+    setRootNodes(buildTreeNodes(nodes, 0));
   }, []);
 
   const toggleCheck = useCallback((nodeId: string) => {
@@ -147,8 +276,13 @@ export function useFileTree() {
     setRootNodes((prev) => updateTokensInTree(prev, tokenMap));
   }, []);
 
-  const selectAll = useCallback((selected: boolean) => {
-    setRootNodes((prev) => selectAllInTree(prev, selected));
+  // 3q: selectAll accepts optional filteredPaths to only toggle visible items
+  const selectAll = useCallback((selected: boolean, filteredPaths?: Set<string>) => {
+    setRootNodes((prev) => selectAllInTree(prev, selected, filteredPaths));
+  }, []);
+
+  const quickSelect = useCallback((filter: QuickFilter) => {
+    setRootNodes((prev) => quickSelectInTree(prev, filter));
   }, []);
 
   const filteredNodes = useMemo(() => {
@@ -180,17 +314,33 @@ export function useFileTree() {
   const flatItems = useMemo(() => flattenTree(filteredNodes), [filteredNodes]);
   const selectedFiles = useMemo(() => getSelectedFiles(rootNodes), [rootNodes]);
 
+  // Compute set of visible file paths for filtered selectAll
+  const visibleFilePaths = useMemo(() => {
+    const paths = new Set<string>();
+    function collectPaths(items: FlatTreeItem[]) {
+      for (const item of items) {
+        if (!item.node.isDir) {
+          paths.add(item.node.path);
+        }
+      }
+    }
+    collectPaths(flatItems);
+    return paths;
+  }, [flatItems]);
+
   return {
     rootNodes,
     flatItems,
     selectedFiles,
     searchQuery,
     highlightedPath,
+    visibleFilePaths,
     loadTree,
     toggleCheck,
     toggleExpand,
     updateTokens,
     selectAll,
+    quickSelect,
     setSearchQuery,
     setHighlightedPath,
   };

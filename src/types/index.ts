@@ -43,6 +43,7 @@ export interface PackRequest {
   files: Array<{
     path: string;
     content: string;
+    tokenCount?: number;
   }>;
   numPacks: number;
   outputFormat: "plaintext" | "markdown" | "xml";
@@ -65,6 +66,7 @@ export interface PackResponse {
 export interface FileContent {
   path: string;
   content: string;
+  tokenCount?: number;
 }
 
 export interface ReachabilityResult {

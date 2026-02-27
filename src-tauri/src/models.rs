@@ -20,6 +20,10 @@ pub struct FileNode {
 pub struct FileContent {
     pub path: String,
     pub content: String,
+    /// Pre-computed token count from the frontend tokenizer (optional).
+    /// When provided, used instead of the naive estimate.
+    #[serde(rename = "tokenCount", skip_serializing_if = "Option::is_none")]
+    pub token_count: Option<usize>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

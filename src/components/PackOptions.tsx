@@ -86,12 +86,19 @@ function ToggleRow({
   );
 }
 
+const AST_SUPPORTED_EXTENSIONS = new Set(["ts", "tsx", "js", "jsx", "py", "rs", "go"]);
+
 export function PackOptions({ options, onChange, maxPacks, selectedFiles }: PackOptionsProps) {
   const [outputOpen, setOutputOpen] = useState(true);
   const [optimizeOpen, setOptimizeOpen] = useState(true);
   const [ignoreOpen, setIgnoreOpen] = useState(false);
 
   const hasMarkdownFiles = selectedFiles.some((f) => f.extension === "md");
+
+  // Files eligible as AST entry points
+  const astEligibleFiles = selectedFiles.filter(
+    (f) => !f.isDir && AST_SUPPORTED_EXTENSIONS.has(f.extension.toLowerCase())
+  );
 
   const update = (partial: Partial<PackOptionsType>) => {
     onChange({ ...options, ...partial });
@@ -124,7 +131,10 @@ export function PackOptions({ options, onChange, maxPacks, selectedFiles }: Pack
                   onChange={(e) => update({ numPacks: Number(e.target.value) })}
                   className="w-full h-1.5 appearance-none bg-muted rounded-full cursor-pointer accent-primary"
                   style={{
-                    background: `linear-gradient(to right, hsl(var(--primary)) 0%, hsl(var(--primary)) ${((options.numPacks - 1) / (maxPacks - 1)) * 100}%, hsl(var(--muted)) ${((options.numPacks - 1) / (maxPacks - 1)) * 100}%, hsl(var(--muted)) 100%)`,
+                    background:
+                      maxPacks > 1
+                        ? `linear-gradient(to right, hsl(var(--primary)) 0%, hsl(var(--primary)) ${((options.numPacks - 1) / (maxPacks - 1)) * 100}%, hsl(var(--muted)) ${((options.numPacks - 1) / (maxPacks - 1)) * 100}%, hsl(var(--muted)) 100%)`
+                        : "hsl(var(--primary))",
                   }}
                 />
               </div>
@@ -186,13 +196,31 @@ export function PackOptions({ options, onChange, maxPacks, selectedFiles }: Pack
               label="AST Dead-Code"
               description="Use Tree-sitter to remove unreachable functions/classes from JS/TS/Python/Rust/Go"
               checked={options.astDeadCode}
-              onCheckedChange={(val) => update({ astDeadCode: val })}
+              onCheckedChange={(val) => update({ astDeadCode: val, entryPoint: null })}
             >
               {options.astDeadCode && (
-                <div className="ml-2 pl-2 border-l-2 border-primary/20 mt-1">
-                  <p className="text-[10px] text-muted-foreground">
-                    Select an entry point file in the tree
-                  </p>
+                <div className="ml-2 pl-2 border-l-2 border-primary/20 mt-1 space-y-1">
+                  {astEligibleFiles.length === 0 ? (
+                    <p className="text-[10px] text-muted-foreground">
+                      Select source files (ts, js, py, rs, go) to choose an entry point
+                    </p>
+                  ) : (
+                    <>
+                      <p className="text-[10px] text-muted-foreground">Entry point file:</p>
+                      <select
+                        value={options.entryPoint ?? ""}
+                        onChange={(e) => update({ entryPoint: e.target.value || null })}
+                        className="w-full text-[10px] font-mono bg-muted/40 border border-border rounded px-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-ring"
+                      >
+                        <option value="">— select entry point —</option>
+                        {astEligibleFiles.map((f) => (
+                          <option key={f.path} value={f.path}>
+                            {f.relativePath}
+                          </option>
+                        ))}
+                      </select>
+                    </>
+                  )}
                 </div>
               )}
             </ToggleRow>
