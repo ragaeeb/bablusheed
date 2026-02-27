@@ -37,13 +37,9 @@
     ]
   },
   "plugins": {
-    "fs": {
-      "scope": {
-        "allow": ["**"]
-      }
-    },
-    "dialog": {},
-    "store": {},
-    "clipboard-manager": {}
+    "fs": null,
+    "dialog": null,
+    "store": null,
+    "clipboard-manager": null
   }
 }
