@@ -1,11 +1,18 @@
-import { FolderOpen, Package2 } from "lucide-react";
+import { FolderOpen, Package2, RotateCcw } from "lucide-react";
 
 interface EmptyStateProps {
   onOpenProject: () => void;
+  onReopenLastProject?: () => void;
+  lastProjectName?: string | null;
   isDragging: boolean;
 }
 
-export function EmptyState({ onOpenProject, isDragging }: EmptyStateProps) {
+export function EmptyState({
+  onOpenProject,
+  onReopenLastProject,
+  lastProjectName,
+  isDragging,
+}: EmptyStateProps) {
   return (
     <div
       className={`flex flex-col items-center justify-center h-full gap-8 transition-all ${
@@ -54,6 +61,19 @@ export function EmptyState({ onOpenProject, isDragging }: EmptyStateProps) {
             <FolderOpen className="h-3.5 w-3.5" />
             Open Project Folder
           </button>
+
+          {/* 3l: Reopen last project button */}
+          {lastProjectName && onReopenLastProject && (
+            <button
+              type="button"
+              onClick={onReopenLastProject}
+              className="inline-flex items-center gap-2 h-7 px-3 text-xs font-medium rounded-md border border-border text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors"
+            >
+              <RotateCcw className="h-3 w-3" />
+              Reopen {lastProjectName}
+            </button>
+          )}
+
           <p className="text-xs text-muted-foreground/70">or drag & drop a folder</p>
         </div>
       )}

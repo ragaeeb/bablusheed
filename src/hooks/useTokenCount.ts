@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { LLMProfile } from "@/lib/llm-profiles";
 import { getTokenizerEncoding } from "@/lib/llm-profiles";
 import { minifyMarkdown, reduceWhitespace, stripComments } from "@/lib/utils";
@@ -23,6 +23,8 @@ export function useTokenCount(
   const workerRef = useRef<Worker | null>(null);
   const pendingRef = useRef<Map<string, string>>(new Map());
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Track last-counted optimized content per file to avoid recounting unchanged files
+  const contentHashMapRef = useRef<Map<string, string>>(new Map());
 
   useEffect(() => {
     workerRef.current = new Worker(new URL("../workers/tokenizer.worker.ts", import.meta.url), {
@@ -61,19 +63,19 @@ export function useTokenCount(
       const encoding = getTokenizerEncoding(llmProfile.tokenizer);
       const message: WorkerMessage = { type: "count", files, encoding };
       workerRef.current?.postMessage(message);
+      pendingRef.current = new Map();
     }, 150);
   }, [llmProfile.tokenizer]);
 
-  useEffect(() => {
-    const filesToCount: Array<{ path: string; content: string }> = [];
-
+  // Pre-compute optimized content strings with useMemo so React can skip re-running
+  // expensive optimizations when only unrelated state changes
+  const optimizedContents = useMemo(() => {
+    const result = new Map<string, string>();
     for (const file of selectedFiles) {
       const rawContent = fileContents.get(file.path);
       if (!rawContent) continue;
 
       let content = rawContent;
-
-      // Apply optimizations
       if (packOptions.stripComments) {
         content = stripComments(content, file.extension);
       }
@@ -87,13 +89,35 @@ export function useTokenCount(
           packOptions.stripMarkdownBlockquotes
         );
       }
+      result.set(file.path, content);
+    }
+    return result;
+  }, [selectedFiles, fileContents, packOptions]);
 
-      filesToCount.push({ path: file.path, content });
+  useEffect(() => {
+    const newPending = new Map<string, string>();
+
+    for (const [path, content] of optimizedContents) {
+      const lastContent = contentHashMapRef.current.get(path);
+      // Only recount if content has changed since last count
+      if (lastContent !== content) {
+        newPending.set(path, content);
+        contentHashMapRef.current.set(path, content);
+      }
     }
 
-    pendingRef.current = new Map(filesToCount.map((f) => [f.path, f.content]));
-    scheduleCount();
-  }, [selectedFiles, fileContents, packOptions, scheduleCount]);
+    // Remove entries for files that are no longer selected
+    for (const key of contentHashMapRef.current.keys()) {
+      if (!optimizedContents.has(key)) {
+        contentHashMapRef.current.delete(key);
+      }
+    }
+
+    if (newPending.size > 0) {
+      pendingRef.current = newPending;
+      scheduleCount();
+    }
+  }, [optimizedContents, scheduleCount]);
 
   // Only sum tokens for currently selected files
   const selectedTokens = selectedFiles.reduce((sum, f) => sum + (tokenMap.get(f.path) ?? 0), 0);

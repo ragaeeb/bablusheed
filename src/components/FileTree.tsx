@@ -2,6 +2,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { ChevronDown, ChevronRight, File, Folder, FolderOpen, Search } from "lucide-react";
 import { useCallback, useRef } from "react";
 import { TokenBadge } from "@/components/TokenBadge";
+import type { QuickFilter } from "@/hooks/useFileTree";
 import { cn } from "@/lib/utils";
 import type { FlatTreeItem } from "@/types";
 
@@ -10,10 +11,13 @@ interface FileTreeProps {
   tokenMap: Map<string, number>;
   searchQuery: string;
   highlightedPath: string | null;
+  visibleFilePaths: Set<string>;
   onToggleCheck: (id: string) => void;
   onToggleExpand: (id: string) => void;
   onSearchChange: (q: string) => void;
-  onSelectAll: (selected: boolean) => void;
+  onSelectAll: (selected: boolean, filteredPaths?: Set<string>) => void;
+  onQuickSelect: (filter: QuickFilter) => void;
+  onFilePreview: (path: string) => void;
   totalSelected: number;
   totalFiles: number;
 }
@@ -72,6 +76,7 @@ function TreeRow({
   isHighlighted,
   onToggleCheck,
   onToggleExpand,
+  onFilePreview,
 }: {
   item: FlatTreeItem;
   tokenMap: Map<string, number>;
@@ -79,6 +84,7 @@ function TreeRow({
   isHighlighted: boolean;
   onToggleCheck: (id: string) => void;
   onToggleExpand: (id: string) => void;
+  onFilePreview: (path: string) => void;
 }) {
   const { node, depth, hasChildren } = item;
   const tokens = tokenMap.get(node.path) ?? node.tokenCount;
@@ -112,10 +118,13 @@ function TreeRow({
         <span className="h-4 w-4 shrink-0" aria-hidden="true" />
       )}
 
-      {/* Custom checkbox */}
+      {/* Custom checkbox — clicking only toggles check, does NOT preview */}
       <button
         type="button"
-        onClick={() => onToggleCheck(node.id)}
+        onClick={(e) => {
+          e.stopPropagation();
+          onToggleCheck(node.id);
+        }}
         className="flex items-center justify-center h-3.5 w-3.5 shrink-0 rounded-sm border transition-colors"
         style={{
           borderColor: isChecked || isIndeterminate ? "hsl(var(--primary))" : "hsl(var(--border))",
@@ -141,7 +150,7 @@ function TreeRow({
         {isIndeterminate && <div className="h-0.5 w-2 bg-primary rounded-full" />}
       </button>
 
-      {/* File icon + name */}
+      {/* File icon + name — clicking a file shows preview; clicking a dir toggles expand */}
       <button
         type="button"
         className="flex items-center gap-1 flex-1 min-w-0 cursor-pointer text-left pl-1"
@@ -149,7 +158,7 @@ function TreeRow({
           if (hasChildren) {
             onToggleExpand(node.id);
           } else {
-            onToggleCheck(node.id);
+            onFilePreview(node.path);
           }
         }}
       >
@@ -180,15 +189,26 @@ function TreeRow({
   );
 }
 
+const QUICK_FILTER_LABELS: Array<{ filter: QuickFilter; label: string; title: string }> = [
+  { filter: "source", label: "Source", title: "Select source files (ts, js, rs, py, go, etc.)" },
+  { filter: "tests", label: "Tests", title: "Select test files (*.test.*, *.spec.*)" },
+  { filter: "config", label: "Config", title: "Select config files (json, toml, yaml, etc.)" },
+  { filter: "docs", label: "Docs", title: "Select documentation files (md, mdx, rst)" },
+  { filter: "clear", label: "Clear", title: "Deselect all files" },
+];
+
 export function FileTree({
   flatItems,
   tokenMap,
   searchQuery,
   highlightedPath,
+  visibleFilePaths,
   onToggleCheck,
   onToggleExpand,
   onSearchChange,
   onSelectAll,
+  onQuickSelect,
+  onFilePreview,
   totalSelected,
   totalFiles,
 }: FileTreeProps) {
@@ -201,6 +221,7 @@ export function FileTree({
     overscan: 10,
   });
 
+  // 3r: keyboard Enter handling
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLElement>, item: FlatTreeItem) => {
       if (e.key === " ") {
@@ -210,12 +231,28 @@ export function FileTree({
         onToggleExpand(item.node.id);
       } else if (e.key === "ArrowLeft" && item.node.isExpanded) {
         onToggleExpand(item.node.id);
+      } else if (e.key === "Enter") {
+        if (item.hasChildren) {
+          onToggleExpand(item.node.id);
+        } else {
+          onToggleCheck(item.node.id);
+          onFilePreview(item.node.path);
+        }
       }
     },
-    [onToggleCheck, onToggleExpand]
+    [onToggleCheck, onToggleExpand, onFilePreview]
   );
 
   const maxFileTokens = Math.max(...Array.from(tokenMap.values()), 1);
+
+  // 3q: pass visibleFilePaths when search is active
+  const handleSelectAll = (selected: boolean) => {
+    if (searchQuery) {
+      onSelectAll(selected, visibleFilePaths);
+    } else {
+      onSelectAll(selected);
+    }
+  };
 
   return (
     <div className="flex flex-col h-full">
@@ -238,7 +275,7 @@ export function FileTree({
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => onSelectAll(true)}
+              onClick={() => handleSelectAll(true)}
               className="text-[10px] text-primary hover:text-primary/80 font-medium"
             >
               all
@@ -246,12 +283,32 @@ export function FileTree({
             <span className="text-muted-foreground/40">·</span>
             <button
               type="button"
-              onClick={() => onSelectAll(false)}
+              onClick={() => handleSelectAll(false)}
               className="text-[10px] text-muted-foreground hover:text-foreground"
             >
               none
             </button>
           </div>
+        </div>
+
+        {/* 2c: Quick-select chips */}
+        <div className="flex flex-wrap gap-1 mt-1.5">
+          {QUICK_FILTER_LABELS.map(({ filter, label, title }) => (
+            <button
+              key={filter}
+              type="button"
+              title={title}
+              onClick={() => onQuickSelect(filter)}
+              className={cn(
+                "text-[10px] px-1.5 py-0.5 rounded border font-medium transition-colors",
+                filter === "clear"
+                  ? "border-border text-muted-foreground hover:text-foreground hover:border-foreground/30"
+                  : "border-primary/30 text-primary/70 hover:text-primary hover:border-primary bg-primary/5 hover:bg-primary/10"
+              )}
+            >
+              {label}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -292,6 +349,7 @@ export function FileTree({
                     isHighlighted={highlightedPath === item.node.path}
                     onToggleCheck={onToggleCheck}
                     onToggleExpand={onToggleExpand}
+                    onFilePreview={onFilePreview}
                   />
                 </div>
               );

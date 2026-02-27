@@ -59,6 +59,22 @@ export function debounce<T extends (...args: unknown[]) => unknown>(
   };
 }
 
+/**
+ * Find the index of a # comment start in a line, ignoring # inside string literals.
+ * Returns -1 if no comment found.
+ */
+function findCommentStart(line: string): number {
+  let inSingle = false;
+  let inDouble = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (c === "'" && !inDouble) inSingle = !inSingle;
+    else if (c === '"' && !inSingle) inDouble = !inDouble;
+    else if (c === "#" && !inSingle && !inDouble) return i;
+  }
+  return -1;
+}
+
 export function stripComments(content: string, extension: string): string {
   const ext = extension.toLowerCase();
 
@@ -78,23 +94,27 @@ export function stripComments(content: string, extension: string): string {
   }
 
   if (hashCommentLanguages.includes(ext)) {
-    // Remove # comments (but preserve shebangs on first line)
-    return content.replace(/(?<!^)#[^\n]*/gm, (match, offset) => {
-      // Keep shebang on first line
-      if (offset === 0 || content.slice(0, offset).includes("\n") === false) {
-        return match;
-      }
-      return "";
-    });
+    // Line-by-line approach with string literal detection
+    let result = content
+      .split("\n")
+      .map((line, index) => {
+        // Preserve shebang on first line
+        if (index === 0 && line.startsWith("#!")) return line;
+        const commentStart = findCommentStart(line);
+        return commentStart === -1 ? line : line.slice(0, commentStart).trimEnd();
+      })
+      .join("\n");
+
+    // Also strip Python docstrings if ext === "py"
+    if (ext === "py") {
+      result = result.replace(/"""[\s\S]*?"""/g, "").replace(/'''[\s\S]*?'''/g, "");
+    }
+
+    return result;
   }
 
   if (dashCommentLanguages.includes(ext)) {
     return content.replace(/--[^\n]*/g, "");
-  }
-
-  if (ext === "py") {
-    // Remove Python docstrings
-    return content.replace(/"""[\s\S]*?"""/g, "").replace(/'''[\s\S]*?'''/g, "");
   }
 
   return content;
@@ -125,10 +145,15 @@ export function minifyMarkdown(
   // Strip HTML comment blocks <!-- ... -->
   result = result.replace(/<!--[\s\S]*?-->/g, "");
 
-  // Strip <div>, <img>, <br> HTML tags
-  result = result.replace(/<div[^>]*>[\s\S]*?<\/div>/gi, "");
-  result = result.replace(/<img[^>]*\/?>/gi, "");
-  result = result.replace(/<br\s*\/?>/gi, "");
+  // Strip block HTML tags and their content (handles nested tags better than balanced matching)
+  result = result.replace(
+    /<(div|details|summary|table|thead|tbody|tr|td|th)[^>]*>[\s\S]*?<\/\1>/gi,
+    ""
+  );
+  // Strip void/self-closing tags
+  result = result.replace(/<(img|br|hr)[^>]*\/?>/gi, "");
+  // Strip any remaining HTML tags (opening or closing, no content matching)
+  result = result.replace(/<[^>]+>/g, "");
 
   // Collapse multiple blank lines
   result = result.replace(/\n{3,}/g, "\n\n");

@@ -1,13 +1,29 @@
 import { cn, formatTokenCount } from "@/lib/utils";
+import type { PackOptions } from "@/types";
 
 interface TokenBarProps {
   usedTokens: number;
   maxTokens: number;
   selectedFileCount: number;
   numPacks: number;
+  packOptions?: PackOptions;
+  tokenMap?: Map<string, number>;
+  selectedFilePaths?: string[];
+  onApplyOptimization?: (partial: Partial<PackOptions>) => void;
+  onDeselectHeaviest?: (count: number) => void;
 }
 
-export function TokenBar({ usedTokens, maxTokens, selectedFileCount, numPacks }: TokenBarProps) {
+export function TokenBar({
+  usedTokens,
+  maxTokens,
+  selectedFileCount,
+  numPacks,
+  packOptions,
+  tokenMap,
+  selectedFilePaths,
+  onApplyOptimization,
+  onDeselectHeaviest,
+}: TokenBarProps) {
   const percentage = maxTokens > 0 ? Math.min((usedTokens / maxTokens) * 100, 100) : 0;
   const isWarning = percentage >= 85;
   const isError = percentage >= 100;
@@ -25,6 +41,49 @@ export function TokenBar({ usedTokens, maxTokens, selectedFileCount, numPacks }:
     : isWarning
       ? "text-amber-600 dark:text-amber-400"
       : "text-foreground";
+
+  // 2e: Compute actionable suggestions when over threshold
+  const suggestions: Array<{ label: string; action: () => void }> = [];
+
+  if (isWarning && packOptions && tokenMap && selectedFilePaths && onApplyOptimization) {
+    // Suggestion: Strip Comments
+    if (!packOptions.stripComments) {
+      // Rough estimate: comments are ~15% of code
+      const savings = Math.round(usedTokens * 0.15);
+      suggestions.push({
+        label: `Strip Comments saves ~${formatTokenCount(savings)}`,
+        action: () => onApplyOptimization({ stripComments: true }),
+      });
+    }
+
+    // Suggestion: Minify Markdown
+    if (!packOptions.minifyMarkdown) {
+      const mdTokens = selectedFilePaths
+        .filter((p) => p.endsWith(".md") || p.endsWith(".mdx"))
+        .reduce((sum, p) => sum + (tokenMap.get(p) ?? 0), 0);
+      if (mdTokens > 0) {
+        const savings = Math.round(mdTokens * 0.3);
+        suggestions.push({
+          label: `Minify Markdown saves ~${formatTokenCount(savings)}`,
+          action: () => onApplyOptimization({ minifyMarkdown: true }),
+        });
+      }
+    }
+
+    // Suggestion: Deselect 2 heaviest files
+    if (onDeselectHeaviest && selectedFilePaths.length >= 2) {
+      const sorted = [...selectedFilePaths].sort(
+        (a, b) => (tokenMap.get(b) ?? 0) - (tokenMap.get(a) ?? 0)
+      );
+      const top2Tokens = (tokenMap.get(sorted[0]) ?? 0) + (tokenMap.get(sorted[1]) ?? 0);
+      if (top2Tokens > 0) {
+        suggestions.push({
+          label: `Deselect 2 heaviest files saves ~${formatTokenCount(top2Tokens)}`,
+          action: () => onDeselectHeaviest(2),
+        });
+      }
+    }
+  }
 
   return (
     <div className="space-y-1.5">
@@ -63,7 +122,29 @@ export function TokenBar({ usedTokens, maxTokens, selectedFileCount, numPacks }:
         />
       </div>
 
-      {isError && (
+      {/* 2e: Actionable suggestions when over threshold */}
+      {isWarning && suggestions.length > 0 && (
+        <div className="space-y-1">
+          <p className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">
+            {percentage.toFixed(0)}% used — {suggestions.length} suggestion
+            {suggestions.length !== 1 ? "s" : ""} to reduce:
+          </p>
+          <div className="flex flex-wrap gap-1">
+            {suggestions.map((s) => (
+              <button
+                key={s.label}
+                type="button"
+                onClick={s.action}
+                className="text-[10px] px-1.5 py-0.5 rounded border border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-colors font-medium"
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {isError && suggestions.length === 0 && (
         <p className="text-[10px] text-red-500 dark:text-red-400">
           Exceeds context window — deselect files or enable optimizations
         </p>
