@@ -60,7 +60,21 @@ export function debounce<T extends (...args: unknown[]) => unknown>(
 }
 
 /**
+ * Count the number of consecutive backslashes immediately before position `pos` in `line`.
+ */
+function countPrecedingBackslashes(line: string, pos: number): number {
+  let count = 0;
+  let i = pos - 1;
+  while (i >= 0 && line[i] === "\\") {
+    count++;
+    i--;
+  }
+  return count;
+}
+
+/**
  * Find the index of a # comment start in a line, ignoring # inside string literals.
+ * Correctly handles escaped quotes (e.g. \") by checking the number of preceding backslashes.
  * Returns -1 if no comment found.
  */
 function findCommentStart(line: string): number {
@@ -68,8 +82,10 @@ function findCommentStart(line: string): number {
   let inDouble = false;
   for (let i = 0; i < line.length; i++) {
     const c = line[i];
-    if (c === "'" && !inDouble) inSingle = !inSingle;
-    else if (c === '"' && !inSingle) inDouble = !inDouble;
+    // A quote is escaped when preceded by an odd number of backslashes
+    const isEscaped = countPrecedingBackslashes(line, i) % 2 === 1;
+    if (c === "'" && !inDouble && !isEscaped) inSingle = !inSingle;
+    else if (c === '"' && !inSingle && !isEscaped) inDouble = !inDouble;
     else if (c === "#" && !inSingle && !inDouble) return i;
   }
   return -1;
@@ -105,9 +121,19 @@ export function stripComments(content: string, extension: string): string {
       })
       .join("\n");
 
-    // Also strip Python docstrings if ext === "py"
+    // Also strip Python docstrings if ext === "py".
+    // Only remove triple-quoted strings that appear at module level (start of file, possibly
+    // after leading whitespace/comments) or immediately after a def/class header line
+    // (the line ending with `:` optionally followed by whitespace).
+    // This preserves legitimate multiline string assignments like `SQL = """..."""`.
     if (ext === "py") {
-      result = result.replace(/"""[\s\S]*?"""/g, "").replace(/'''[\s\S]*?'''/g, "");
+      // Module-level docstring: triple-quoted string at the very start of the file
+      result = result.replace(/^(\s*)("""[\s\S]*?"""|'''[\s\S]*?''')/, "$1");
+      // def/class docstrings: triple-quoted string on the line(s) after a def/class colon
+      result = result.replace(
+        /((?:^|\n)[ \t]*(?:def|class)\b[^\n]*:\s*\n[ \t]*)("""[\s\S]*?"""|'''[\s\S]*?''')/g,
+        "$1"
+      );
     }
 
     return result;

@@ -88,6 +88,9 @@ function ToggleRow({
 
 const AST_SUPPORTED_EXTENSIONS = new Set(["ts", "tsx", "js", "jsx", "py", "rs", "go"]);
 
+// Derive the display hint from the constant so it always matches the actual supported list
+const AST_SUPPORTED_EXTENSIONS_HINT = Array.from(AST_SUPPORTED_EXTENSIONS).join(", ");
+
 export function PackOptions({ options, onChange, maxPacks, selectedFiles }: PackOptionsProps) {
   const [outputOpen, setOutputOpen] = useState(true);
   const [optimizeOpen, setOptimizeOpen] = useState(true);
@@ -103,6 +106,14 @@ export function PackOptions({ options, onChange, maxPacks, selectedFiles }: Pack
   const update = (partial: Partial<PackOptionsType>) => {
     onChange({ ...options, ...partial });
   };
+
+  // Revalidate entryPoint whenever the eligible file set changes:
+  // if the current entryPoint is no longer in the eligible set, clear it.
+  const eligiblePaths = new Set(astEligibleFiles.map((f) => f.path));
+  if (options.entryPoint && !eligiblePaths.has(options.entryPoint)) {
+    // Use setTimeout to avoid calling onChange during render
+    setTimeout(() => onChange({ ...options, entryPoint: null }), 0);
+  }
 
   return (
     <div className="space-y-0">
@@ -202,7 +213,7 @@ export function PackOptions({ options, onChange, maxPacks, selectedFiles }: Pack
                 <div className="ml-2 pl-2 border-l-2 border-primary/20 mt-1 space-y-1">
                   {astEligibleFiles.length === 0 ? (
                     <p className="text-[10px] text-muted-foreground">
-                      Select source files (ts, js, py, rs, go) to choose an entry point
+                      Select source files ({AST_SUPPORTED_EXTENSIONS_HINT}) to choose an entry point
                     </p>
                   ) : (
                     <>

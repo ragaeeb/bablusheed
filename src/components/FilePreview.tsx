@@ -53,18 +53,22 @@ export function FilePreview({
   onClose,
 }: FilePreviewProps) {
   const [copied, setCopied] = useState(false);
+  const [copyError, setCopyError] = useState(false);
   const [showOptimized, setShowOptimized] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
   // Load content on demand if not yet cached
+  // Depend on file?.path (not the whole fileContents Map) so this re-runs when the file changes,
+  // not on every Map mutation.
+  const filePath = file?.path;
   useEffect(() => {
-    if (!file) return;
-    if (fileContents.has(file.path)) return;
+    if (!filePath) return;
+    if (fileContents.has(filePath)) return;
     if (!onLoadContent) return;
 
     setIsLoading(true);
-    onLoadContent(file.path).finally(() => setIsLoading(false));
-  }, [file, fileContents, onLoadContent]);
+    onLoadContent(filePath).finally(() => setIsLoading(false));
+  }, [filePath, onLoadContent]);
 
   // Close on Escape
   useEffect(() => {
@@ -111,6 +115,8 @@ export function FilePreview({
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
       console.error("Copy failed:", err);
+      setCopyError(true);
+      setTimeout(() => setCopyError(false), 2000);
     }
   };
 
@@ -174,11 +180,13 @@ export function FilePreview({
               "inline-flex items-center gap-1 h-6 px-2 text-[11px] font-medium rounded border transition-colors",
               copied
                 ? "bg-emerald-50 border-emerald-200 text-emerald-600 dark:bg-emerald-900/20 dark:border-emerald-700 dark:text-emerald-400"
-                : "bg-background border-border text-muted-foreground hover:text-foreground hover:border-primary/50"
+                : copyError
+                  ? "bg-red-50 border-red-200 text-red-600 dark:bg-red-900/20 dark:border-red-700 dark:text-red-400"
+                  : "bg-background border-border text-muted-foreground hover:text-foreground hover:border-primary/50"
             )}
           >
             {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
-            {copied ? "Copied" : "Copy"}
+            {copied ? "Copied" : copyError ? "Failed" : "Copy"}
           </button>
 
           {/* Select/Deselect button */}

@@ -144,7 +144,7 @@ export function TokenBar({
         </div>
       )}
 
-      {isError && suggestions.length === 0 && (
+      {isError && (
         <p className="text-[10px] text-red-500 dark:text-red-400">
           Exceeds context window — deselect files or enable optimizations
         </p>

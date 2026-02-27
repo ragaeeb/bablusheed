@@ -215,10 +215,12 @@ function quickSelectInTree(nodes: FileTreeNode[], filter: QuickFilter): FileTree
       return { ...node, children: updatedChildren, checkState: childState };
     }
 
-    let shouldSelect = false;
     if (filter === "clear") {
-      shouldSelect = false;
-    } else if (filter === "source") {
+      return { ...node, checkState: "unchecked" };
+    }
+
+    let shouldSelect = false;
+    if (filter === "source") {
       shouldSelect = isSourceFile(node);
     } else if (filter === "tests") {
       shouldSelect = isTestFile(node);
@@ -226,10 +228,6 @@ function quickSelectInTree(nodes: FileTreeNode[], filter: QuickFilter): FileTree
       shouldSelect = isConfigFile(node);
     } else if (filter === "docs") {
       shouldSelect = isDocFile(node);
-    }
-
-    if (filter === "clear") {
-      return { ...node, checkState: "unchecked" };
     }
 
     // Additive: only select, don't deselect already-selected files
