@@ -20,7 +20,9 @@ export function TitleBar({ theme, onToggleTheme }: TitleBarProps) {
         const target = e.target as HTMLElement;
         // Don't drag if clicking a button or interactive element
         if (target.closest("button")) return;
-        appWindow.startDragging();
+        appWindow.startDragging().catch((err) => {
+          console.error("startDragging failed:", err);
+        });
       }}
     >
       {/* App title */}

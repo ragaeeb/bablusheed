@@ -18,6 +18,8 @@ import type { PackResponse } from "@/types";
 
 interface OutputPreviewProps {
   packResult: PackResponse;
+  /** Optional real per-file token counts from the tokenizer; used to show accurate per-file estimates */
+  tokenMap?: Map<string, number>;
   onClose: () => void;
 }
 
@@ -186,17 +188,35 @@ function PackContent({
   );
 }
 
-export function OutputPreview({ packResult, onClose }: OutputPreviewProps) {
+export function OutputPreview({ packResult, tokenMap, onClose }: OutputPreviewProps) {
   const [prompt, setPrompt] = useState("");
   const [showHowTo, setShowHowTo] = useState(false);
   const [exportingAll, setExportingAll] = useState(false);
 
-  // Build a token map from file paths across all packs
+  // Build a per-file token map: prefer real counts from the tokenizer (tokenMap prop),
+  // fall back to a proportional estimate weighted by the number of files in the pack.
   const fileTokenMap = new Map<string, number>();
   for (const pack of packResult.packs) {
-    const perFile = Math.round(pack.estimatedTokens / Math.max(pack.fileCount, 1));
+    // Compute total real tokens for files in this pack that have known counts
+    const knownEntries: Array<{ fp: string; tokens: number }> = [];
+    const unknownPaths: string[] = [];
     for (const fp of pack.filePaths) {
-      fileTokenMap.set(fp, perFile);
+      const real = tokenMap?.get(fp);
+      if (real !== undefined) {
+        knownEntries.push({ fp, tokens: real });
+        fileTokenMap.set(fp, real);
+      } else {
+        unknownPaths.push(fp);
+      }
+    }
+    // Distribute remaining tokens proportionally among files without real counts
+    if (unknownPaths.length > 0) {
+      const knownTotal = knownEntries.reduce((s, e) => s + e.tokens, 0);
+      const remaining = Math.max(pack.estimatedTokens - knownTotal, 0);
+      const perUnknown = Math.round(remaining / unknownPaths.length);
+      for (const fp of unknownPaths) {
+        fileTokenMap.set(fp, perUnknown);
+      }
     }
   }
 

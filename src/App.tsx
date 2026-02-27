@@ -36,22 +36,12 @@ const DEFAULT_PACK_OPTIONS: PackOptionsType = {
   customIgnorePatterns: "**/*.test.ts\n**/*.spec.*\n**/__mocks__/**",
 };
 
-/** Count total non-directory files in a tree */
-function countFiles(nodes: FileTreeNode[]): number {
+/** Count total non-directory files in any tree whose nodes have isDir and optional children */
+function countNodes<T extends { isDir: boolean; children?: T[] }>(nodes: T[]): number {
   let count = 0;
   for (const n of nodes) {
     if (!n.isDir) count++;
-    if (n.children) count += countFiles(n.children);
-  }
-  return count;
-}
-
-/** Count total non-directory files in a FileNode tree */
-function countFileNodes(nodes: FileNode[]): number {
-  let count = 0;
-  for (const n of nodes) {
-    if (!n.isDir) count++;
-    if (n.children) count += countFileNodes(n.children);
+    if (n.children) count += countNodes(n.children);
   }
   return count;
 }
@@ -222,59 +212,65 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [saveSettings]);
 
-  // 3c: Lazy file content loading — load on demand, cache in fileContents
-  const loadFileContent = useCallback(
-    async (path: string): Promise<void> => {
-      if (fileContents.has(path)) return;
-      try {
-        const content = await readTextFile(path);
-        setFileContents((prev) => {
-          const next = new Map(prev);
-          next.set(path, content);
-          return next;
-        });
-      } catch {
-        setFileContents((prev) => {
-          const next = new Map(prev);
-          next.set(path, "");
-          return next;
-        });
-      }
-    },
-    [fileContents]
-  );
+  // 3c: Lazy file content loading — load on demand, cache in fileContents.
+  // Uses functional updater to check existence inside the updater so fileContents
+  // is not a dependency (avoids recreating the callback on every Map change).
+  const loadFileContent = useCallback(async (path: string): Promise<void> => {
+    try {
+      const content = await readTextFile(path);
+      setFileContents((prev) => {
+        if (prev.has(path)) return prev;
+        const next = new Map(prev);
+        next.set(path, content);
+        return next;
+      });
+    } catch {
+      setFileContents((prev) => {
+        if (prev.has(path)) return prev;
+        const next = new Map(prev);
+        next.set(path, "");
+        return next;
+      });
+    }
+  }, []);
 
-  // 3c: Load content for newly selected files
-  const loadContentsForFiles = useCallback(
-    async (files: FileTreeNode[]) => {
-      const toLoad = files.filter((f) => !f.isDir && !fileContents.has(f.path));
-      if (toLoad.length === 0) return;
-      const updates = new Map<string, string>();
-      await Promise.all(
-        toLoad.map(async (f) => {
-          try {
-            const content = await readTextFile(f.path);
-            updates.set(f.path, content);
-          } catch {
-            updates.set(f.path, "");
-          }
-        })
-      );
-      if (updates.size > 0) {
-        setFileContents((prev) => {
-          const next = new Map(prev);
-          for (const [k, v] of updates) next.set(k, v);
-          return next;
-        });
-      }
-    },
-    [fileContents]
-  );
+  // 3c: Load content for newly selected files.
+  // Stable callback — does not close over fileContents; uses functional updater to skip
+  // already-loaded paths.
+  const loadContentsForFiles = useCallback(async (files: FileTreeNode[]) => {
+    const toLoad = files.filter((f) => !f.isDir);
+    if (toLoad.length === 0) return;
+    const updates = new Map<string, string>();
+    await Promise.all(
+      toLoad.map(async (f) => {
+        try {
+          const content = await readTextFile(f.path);
+          updates.set(f.path, content);
+        } catch {
+          updates.set(f.path, "");
+        }
+      })
+    );
+    if (updates.size > 0) {
+      setFileContents((prev) => {
+        // Only add entries that are not already present
+        const toAdd = Array.from(updates.entries()).filter(([k]) => !prev.has(k));
+        if (toAdd.length === 0) return prev;
+        const next = new Map(prev);
+        for (const [k, v] of toAdd) next.set(k, v);
+        return next;
+      });
+    }
+  }, []);
 
-  // Load content for selected files whenever selection changes
+  // Load content for selected files whenever selection changes.
+  // Filter to only files not yet loaded to avoid redundant reads.
   useEffect(() => {
-    loadContentsForFiles(selectedFiles);
-  }, [selectedFiles, loadContentsForFiles]);
+    const filesToLoad = selectedFiles.filter((f) => !f.isDir && !fileContents.has(f.path));
+    if (filesToLoad.length > 0) {
+      loadContentsForFiles(filesToLoad);
+    }
+  }, [selectedFiles, fileContents, loadContentsForFiles]);
 
   // 3i: loadProject reads from refs, stable reference
   const loadProject = useCallback(
@@ -300,7 +296,7 @@ export default function App() {
         loadTree(nodes);
 
         // 3c: Eager pre-load only for small projects (<50 files)
-        const totalFileCount = countFileNodes(nodes);
+        const totalFileCount = countNodes(nodes);
         if (totalFileCount < 50) {
           const contentMap = new Map<string, string>();
 
@@ -423,7 +419,7 @@ export default function App() {
     return 1;
   }, [showOutput, packResult, selectedFiles.length]);
 
-  const totalFiles = countFiles(rootNodes);
+  const totalFiles = countNodes(rootNodes);
 
   // Find the preview file node
   const previewFile = useMemo(() => {
@@ -658,6 +654,7 @@ export default function App() {
               <div className="w-[400px] shrink-0 flex flex-col overflow-hidden border-l border-border">
                 <OutputPreview
                   packResult={packResult}
+                  tokenMap={tokenMap}
                   onClose={() => {
                     setShowOutput(false);
                     clearResult();

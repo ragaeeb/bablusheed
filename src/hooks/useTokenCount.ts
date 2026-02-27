@@ -23,8 +23,11 @@ export function useTokenCount(
   const workerRef = useRef<Worker | null>(null);
   const pendingRef = useRef<Map<string, string>>(new Map());
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Track last-counted optimized content per file to avoid recounting unchanged files
+  // Track last-counted optimized content per file to avoid recounting unchanged files.
+  // Values are stored as `${tokenizer}:${content}` so a tokenizer change invalidates the cache.
   const contentHashMapRef = useRef<Map<string, string>>(new Map());
+  // Track the last tokenizer used so we can detect changes
+  const lastTokenizerRef = useRef<string>(llmProfile.tokenizer);
 
   useEffect(() => {
     workerRef.current = new Worker(new URL("../workers/tokenizer.worker.ts", import.meta.url), {
@@ -73,7 +76,8 @@ export function useTokenCount(
     const result = new Map<string, string>();
     for (const file of selectedFiles) {
       const rawContent = fileContents.get(file.path);
-      if (!rawContent) continue;
+      // Only skip when the entry is truly absent (undefined); empty string is valid (0 tokens)
+      if (rawContent === undefined || rawContent === null) continue;
 
       let content = rawContent;
       if (packOptions.stripComments) {
@@ -97,9 +101,17 @@ export function useTokenCount(
   useEffect(() => {
     const newPending = new Map<string, string>();
 
+    // Detect tokenizer change: if the tokenizer changed, invalidate the entire cache
+    // so all files are re-queued with the new tokenizer.
+    const tokenizerChanged = lastTokenizerRef.current !== llmProfile.tokenizer;
+    if (tokenizerChanged) {
+      contentHashMapRef.current.clear();
+      lastTokenizerRef.current = llmProfile.tokenizer;
+    }
+
     for (const [path, content] of optimizedContents) {
       const lastContent = contentHashMapRef.current.get(path);
-      // Only recount if content has changed since last count
+      // Only recount if content has changed since last count (or tokenizer changed, which cleared the cache)
       if (lastContent !== content) {
         newPending.set(path, content);
         contentHashMapRef.current.set(path, content);
@@ -117,7 +129,7 @@ export function useTokenCount(
       pendingRef.current = newPending;
       scheduleCount();
     }
-  }, [optimizedContents, scheduleCount]);
+  }, [optimizedContents, scheduleCount, llmProfile.tokenizer]);
 
   // Only sum tokens for currently selected files
   const selectedTokens = selectedFiles.reduce((sum, f) => sum + (tokenMap.get(f.path) ?? 0), 0);

@@ -235,7 +235,7 @@ export function FileTree({
         if (item.hasChildren) {
           onToggleExpand(item.node.id);
         } else {
-          onToggleCheck(item.node.id);
+          // Enter on a file opens the preview only; use Space to toggle selection
           onFilePreview(item.node.path);
         }
       }

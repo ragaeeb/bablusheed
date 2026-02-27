@@ -6,11 +6,27 @@ import type { FileTreeNode, PackOptions, PackResponse, ReachabilityResult } from
 const AST_SUPPORTED_EXTENSIONS = new Set(["ts", "tsx", "js", "jsx", "py", "rs", "go"]);
 
 /**
+ * Maximum content size (in characters) for which regex-based stripping is safe.
+ * Files larger than this are returned unmodified to avoid catastrophic backtracking.
+ * TODO: Replace regex-based stripping in stripUnreachableSymbols with AST-based stripping
+ *       via the analyze_reachability entry point once Tree-sitter integration is complete.
+ */
+const MAX_STRIP_SIZE = 200_000;
+
+/**
  * Strip unreachable top-level declarations from a file's content.
  * Uses regex-based approach for TS/JS/Python/Rust/Go.
  */
 function stripUnreachableSymbols(content: string, symbols: string[], ext: string): string {
   if (symbols.length === 0) return content;
+
+  // Safety guard: skip regex stripping on large files to prevent catastrophic backtracking.
+  if (content.length > MAX_STRIP_SIZE) {
+    console.warn(
+      `stripUnreachableSymbols: skipping ${ext} file (${content.length} chars > MAX_STRIP_SIZE ${MAX_STRIP_SIZE})`
+    );
+    return content;
+  }
 
   let result = content;
   for (const sym of symbols) {
