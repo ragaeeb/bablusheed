@@ -1,17 +1,7 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
-import {
-  CheckSquare,
-  ChevronDown,
-  ChevronRight,
-  File,
-  Folder,
-  FolderOpen,
-  Search,
-  Square,
-} from "lucide-react";
+import { ChevronDown, ChevronRight, File, Folder, FolderOpen, Search } from "lucide-react";
 import { useCallback, useRef } from "react";
 import { TokenBadge } from "@/components/TokenBadge";
-import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import type { FlatTreeItem } from "@/types";
 
@@ -28,15 +18,6 @@ interface FileTreeProps {
   totalFiles: number;
 }
 
-function getFileColorIntensity(tokens: number, maxTokens: number): string {
-  if (maxTokens === 0 || tokens === 0) return "";
-  const ratio = tokens / maxTokens;
-  if (ratio > 0.8) return "bg-red-500/10";
-  if (ratio > 0.5) return "bg-orange-500/8";
-  if (ratio > 0.2) return "bg-yellow-500/5";
-  return "";
-}
-
 function FileIcon({
   extension,
   isDir,
@@ -48,34 +29,37 @@ function FileIcon({
 }) {
   if (isDir) {
     return isExpanded ? (
-      <FolderOpen className="h-3.5 w-3.5 text-yellow-400 shrink-0" />
+      <FolderOpen className="h-3.5 w-3.5 text-amber-500 shrink-0" />
     ) : (
-      <Folder className="h-3.5 w-3.5 text-yellow-400 shrink-0" />
+      <Folder className="h-3.5 w-3.5 text-amber-500/80 shrink-0" />
     );
   }
 
   const colorMap: Record<string, string> = {
-    ts: "text-blue-400",
-    tsx: "text-cyan-400",
-    js: "text-yellow-300",
-    jsx: "text-cyan-300",
+    ts: "text-blue-500",
+    tsx: "text-cyan-500",
+    js: "text-yellow-500",
+    jsx: "text-cyan-400",
     rs: "text-orange-500",
-    py: "text-yellow-400",
-    go: "text-cyan-500",
-    md: "text-slate-300",
-    json: "text-green-400",
-    css: "text-purple-400",
+    py: "text-blue-400",
+    go: "text-cyan-600",
+    md: "text-slate-400",
+    json: "text-green-500",
+    css: "text-purple-500",
     html: "text-orange-400",
-    toml: "text-pink-400",
-    yaml: "text-green-300",
-    yml: "text-green-300",
+    toml: "text-pink-500",
+    yaml: "text-green-400",
+    yml: "text-green-400",
+    svg: "text-pink-400",
+    sh: "text-emerald-500",
+    lock: "text-slate-400",
   };
 
   return (
     <File
       className={cn(
         "h-3.5 w-3.5 shrink-0",
-        colorMap[extension.toLowerCase()] ?? "text-muted-foreground"
+        colorMap[extension.toLowerCase()] ?? "text-muted-foreground/60"
       )}
     />
   );
@@ -98,23 +82,24 @@ function TreeRow({
 }) {
   const { node, depth, hasChildren } = item;
   const tokens = tokenMap.get(node.path) ?? node.tokenCount;
-  const intensityClass = !node.isDir ? getFileColorIntensity(tokens, maxTokens) : "";
+  const isChecked = node.checkState === "checked";
+  const isIndeterminate = node.checkState === "indeterminate";
 
   return (
     <div
       className={cn(
-        "flex items-center gap-1 px-2 py-0.5 rounded-sm group hover:bg-muted/50 transition-colors min-h-[26px]",
-        isHighlighted && "ring-1 ring-primary/50 bg-primary/5",
-        intensityClass
+        "flex items-center gap-0.5 px-1 rounded-sm group cursor-pointer min-h-[22px] text-[12px]",
+        isHighlighted ? "bg-primary/10 ring-1 ring-primary/30" : "hover:bg-muted/70",
+        isChecked && !node.isDir && "bg-primary/5"
       )}
-      style={{ paddingLeft: `${depth * 12 + 8}px` }}
+      style={{ paddingLeft: `${depth * 10 + 4}px` }}
     >
       {/* Expand/collapse button */}
       {hasChildren ? (
         <button
           type="button"
           onClick={() => onToggleExpand(node.id)}
-          className="flex items-center justify-center h-4 w-4 shrink-0 hover:text-foreground text-muted-foreground"
+          className="flex items-center justify-center h-4 w-4 shrink-0 text-muted-foreground/60 hover:text-muted-foreground"
           aria-label={node.isExpanded ? "Collapse" : "Expand"}
         >
           {node.isExpanded ? (
@@ -127,19 +112,39 @@ function TreeRow({
         <span className="h-4 w-4 shrink-0" aria-hidden="true" />
       )}
 
-      {/* Checkbox */}
-      <Checkbox
-        checked={node.checkState === "checked"}
-        indeterminate={node.checkState === "indeterminate"}
-        onCheckedChange={() => onToggleCheck(node.id)}
-        className="h-3.5 w-3.5 shrink-0"
+      {/* Custom checkbox */}
+      <button
+        type="button"
+        onClick={() => onToggleCheck(node.id)}
+        className="flex items-center justify-center h-3.5 w-3.5 shrink-0 rounded-sm border transition-colors"
+        style={{
+          borderColor: isChecked || isIndeterminate ? "hsl(var(--primary))" : "hsl(var(--border))",
+          backgroundColor: isChecked
+            ? "hsl(var(--primary))"
+            : isIndeterminate
+              ? "hsl(var(--primary) / 0.3)"
+              : "transparent",
+        }}
         aria-label={`Select ${node.name}`}
-      />
+      >
+        {isChecked && (
+          <svg className="h-2 w-2 text-white" viewBox="0 0 8 8" fill="none" aria-hidden="true">
+            <path
+              d="M1 4l2 2 4-4"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        )}
+        {isIndeterminate && <div className="h-0.5 w-2 bg-primary rounded-full" />}
+      </button>
 
       {/* File icon + name */}
       <button
         type="button"
-        className="flex items-center gap-1.5 flex-1 min-w-0 cursor-pointer text-left"
+        className="flex items-center gap-1 flex-1 min-w-0 cursor-pointer text-left pl-1"
         onClick={() => {
           if (hasChildren) {
             onToggleExpand(node.id);
@@ -149,7 +154,16 @@ function TreeRow({
         }}
       >
         <FileIcon extension={node.extension} isDir={node.isDir} isExpanded={node.isExpanded} />
-        <span className="text-xs font-mono truncate text-foreground/90 group-hover:text-foreground">
+        <span
+          className={cn(
+            "font-mono truncate leading-none",
+            node.isDir
+              ? "text-foreground/80 font-medium"
+              : isChecked
+                ? "text-foreground"
+                : "text-foreground/70 group-hover:text-foreground/90"
+          )}
+        >
           {node.name}
         </span>
       </button>
@@ -159,7 +173,7 @@ function TreeRow({
         <TokenBadge
           tokens={tokens}
           maxTokens={maxTokens}
-          className="shrink-0 opacity-70 group-hover:opacity-100 transition-opacity"
+          className="shrink-0 opacity-50 group-hover:opacity-80 transition-opacity"
         />
       )}
     </div>
@@ -183,7 +197,7 @@ export function FileTree({
   const rowVirtualizer = useVirtualizer({
     count: flatItems.length,
     getScrollElement: () => containerRef.current,
-    estimateSize: () => 26,
+    estimateSize: () => 22,
     overscan: 10,
   });
 
@@ -206,47 +220,46 @@ export function FileTree({
   return (
     <div className="flex flex-col h-full">
       {/* Search bar */}
-      <div className="p-2 border-b border-border/50">
+      <div className="px-2 py-1.5 border-b border-border">
         <div className="relative">
-          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground/60" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
             placeholder="Filter files..."
-            className="w-full text-xs bg-muted/50 border border-border rounded-md pl-7 pr-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-ring"
+            className="w-full text-xs bg-muted/40 border border-border rounded pl-6 pr-2 py-1 focus:outline-none focus:ring-1 focus:ring-ring focus:bg-background placeholder:text-muted-foreground/50 font-mono"
           />
         </div>
-        <div className="flex items-center justify-between mt-1.5 px-0.5">
-          <span className="text-xs text-muted-foreground">
-            {totalSelected}/{totalFiles} selected
+        <div className="flex items-center justify-between mt-1 px-0.5">
+          <span className="text-[10px] text-muted-foreground/70 font-mono">
+            {totalSelected}/{totalFiles}
           </span>
           <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={() => onSelectAll(true)}
-              className="text-xs text-primary hover:underline flex items-center gap-0.5"
+              className="text-[10px] text-primary hover:text-primary/80 font-medium"
             >
-              <CheckSquare className="h-3 w-3" />
-              All
+              all
             </button>
+            <span className="text-muted-foreground/40">·</span>
             <button
               type="button"
               onClick={() => onSelectAll(false)}
-              className="text-xs text-muted-foreground hover:underline flex items-center gap-0.5"
+              className="text-[10px] text-muted-foreground hover:text-foreground"
             >
-              <Square className="h-3 w-3" />
-              None
+              none
             </button>
           </div>
         </div>
       </div>
 
       {/* Virtualized tree */}
-      <div ref={containerRef} className="flex-1 overflow-y-auto overflow-x-hidden">
+      <div ref={containerRef} className="flex-1 overflow-y-auto overflow-x-hidden py-1">
         {flatItems.length === 0 ? (
-          <div className="flex items-center justify-center h-24 text-xs text-muted-foreground">
-            No files match the filter
+          <div className="flex items-center justify-center h-16 text-xs text-muted-foreground/60">
+            No files match
           </div>
         ) : (
           <div

@@ -1,9 +1,6 @@
 import { ChevronDown, ChevronRight, Info } from "lucide-react";
 import { useState } from "react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Label } from "@/components/ui/label";
-import { Slider } from "@/components/ui/slider";
-import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import type { FileTreeNode, PackOptions as PackOptionsType } from "@/types";
@@ -15,7 +12,22 @@ interface PackOptionsProps {
   selectedFiles: FileTreeNode[];
 }
 
-function OptionRow({
+function SectionHeader({ label, isOpen }: { label: string; isOpen: boolean }) {
+  return (
+    <div className="flex items-center justify-between w-full py-1.5 px-2">
+      <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">
+        {label}
+      </span>
+      {isOpen ? (
+        <ChevronDown className="h-3 w-3 text-muted-foreground/60" />
+      ) : (
+        <ChevronRight className="h-3 w-3 text-muted-foreground/60" />
+      )}
+    </div>
+  );
+}
+
+function ToggleRow({
   label,
   description,
   checked,
@@ -31,29 +43,43 @@ function OptionRow({
   children?: React.ReactNode;
 }) {
   return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-1.5">
-          <Label className={cn("text-sm cursor-pointer", disabled && "opacity-50")} htmlFor={label}>
+    <div className="space-y-1">
+      <div className="flex items-center justify-between gap-2 py-0.5">
+        <div className="flex items-center gap-1">
+          <span className={cn("text-xs text-foreground/80", disabled && "opacity-40")}>
             {label}
-          </Label>
+          </span>
           {description && (
             <Tooltip>
               <TooltipTrigger asChild>
-                <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                <Info className="h-3 w-3 text-muted-foreground/50 cursor-help" />
               </TooltipTrigger>
-              <TooltipContent>
-                <p className="max-w-[200px] text-xs">{description}</p>
+              <TooltipContent side="right">
+                <p className="max-w-[180px] text-xs">{description}</p>
               </TooltipContent>
             </Tooltip>
           )}
         </div>
-        <Switch
-          id={label}
-          checked={checked}
-          onCheckedChange={onCheckedChange}
+        {/* Custom toggle switch */}
+        <button
+          type="button"
+          role="switch"
+          aria-checked={checked}
           disabled={disabled}
-        />
+          onClick={() => !disabled && onCheckedChange(!checked)}
+          className={cn(
+            "relative inline-flex h-4 w-7 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors",
+            checked ? "bg-primary" : "bg-muted-foreground/25",
+            disabled && "opacity-40 cursor-not-allowed"
+          )}
+        >
+          <span
+            className={cn(
+              "pointer-events-none inline-block h-3 w-3 rounded-full bg-white shadow-sm transition-transform",
+              checked ? "translate-x-3" : "translate-x-0"
+            )}
+          />
+        </button>
       </div>
       {children}
     </div>
@@ -72,35 +98,37 @@ export function PackOptions({ options, onChange, maxPacks, selectedFiles }: Pack
   };
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-0">
       {/* Output Configuration */}
       <Collapsible open={outputOpen} onOpenChange={setOutputOpen}>
-        <CollapsibleTrigger className="flex items-center justify-between w-full px-3 py-2 hover:bg-muted/50 rounded-md transition-colors">
-          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-            Output Configuration
-          </span>
-          {outputOpen ? (
-            <ChevronDown className="h-3 w-3 text-muted-foreground" />
-          ) : (
-            <ChevronRight className="h-3 w-3 text-muted-foreground" />
-          )}
+        <CollapsibleTrigger className="w-full hover:bg-muted/50 rounded transition-colors">
+          <SectionHeader label="Output" isOpen={outputOpen} />
         </CollapsibleTrigger>
         <CollapsibleContent>
-          <div className="px-3 py-2 space-y-4">
+          <div className="px-2 pb-2 space-y-3">
             {/* Number of packs */}
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <div className="flex items-center justify-between">
-                <Label className="text-sm">Output Packs</Label>
-                <span className="text-sm font-mono text-primary">{options.numPacks}</span>
+                <span className="text-xs text-foreground/80">Packs</span>
+                <span className="text-xs font-mono font-semibold text-primary">
+                  {options.numPacks}
+                </span>
               </div>
-              <Slider
-                min={1}
-                max={maxPacks}
-                step={1}
-                value={[options.numPacks]}
-                onValueChange={([val]) => update({ numPacks: val })}
-              />
-              <div className="flex justify-between text-xs text-muted-foreground">
+              <div className="relative">
+                <input
+                  type="range"
+                  min={1}
+                  max={maxPacks}
+                  step={1}
+                  value={options.numPacks}
+                  onChange={(e) => update({ numPacks: Number(e.target.value) })}
+                  className="w-full h-1.5 appearance-none bg-muted rounded-full cursor-pointer accent-primary"
+                  style={{
+                    background: `linear-gradient(to right, hsl(var(--primary)) 0%, hsl(var(--primary)) ${((options.numPacks - 1) / (maxPacks - 1)) * 100}%, hsl(var(--muted)) ${((options.numPacks - 1) / (maxPacks - 1)) * 100}%, hsl(var(--muted)) 100%)`,
+                  }}
+                />
+              </div>
+              <div className="flex justify-between text-[10px] text-muted-foreground/60 font-mono">
                 <span>1</span>
                 <span>{maxPacks}</span>
               </div>
@@ -108,18 +136,18 @@ export function PackOptions({ options, onChange, maxPacks, selectedFiles }: Pack
 
             {/* Output format */}
             <div className="space-y-1.5">
-              <Label className="text-sm">Output Format</Label>
-              <div className="grid grid-cols-3 gap-1">
+              <span className="text-xs text-foreground/80">Format</span>
+              <div className="grid grid-cols-3 gap-1 mt-1">
                 {(["plaintext", "markdown", "xml"] as const).map((fmt) => (
                   <button
                     key={fmt}
                     type="button"
                     onClick={() => update({ outputFormat: fmt })}
                     className={cn(
-                      "px-2 py-1.5 text-xs rounded-md border transition-colors",
+                      "py-1 text-[10px] font-medium rounded border transition-colors",
                       options.outputFormat === fmt
                         ? "bg-primary text-primary-foreground border-primary"
-                        : "bg-muted/50 border-border hover:bg-muted"
+                        : "bg-transparent border-border text-muted-foreground hover:border-primary/50 hover:text-foreground"
                     )}
                   >
                     {fmt === "plaintext" ? "Plain" : fmt === "markdown" ? "MD" : "XML"}
@@ -131,52 +159,45 @@ export function PackOptions({ options, onChange, maxPacks, selectedFiles }: Pack
         </CollapsibleContent>
       </Collapsible>
 
+      <div className="h-px bg-border/60 mx-2" />
+
       {/* Token Optimization */}
       <Collapsible open={optimizeOpen} onOpenChange={setOptimizeOpen}>
-        <CollapsibleTrigger className="flex items-center justify-between w-full px-3 py-2 hover:bg-muted/50 rounded-md transition-colors">
-          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-            Token Optimization
-          </span>
-          {optimizeOpen ? (
-            <ChevronDown className="h-3 w-3 text-muted-foreground" />
-          ) : (
-            <ChevronRight className="h-3 w-3 text-muted-foreground" />
-          )}
+        <CollapsibleTrigger className="w-full hover:bg-muted/50 rounded transition-colors">
+          <SectionHeader label="Optimize" isOpen={optimizeOpen} />
         </CollapsibleTrigger>
         <CollapsibleContent>
-          <div className="px-3 py-2 space-y-4">
-            <OptionRow
+          <div className="px-2 pb-2 space-y-1">
+            <ToggleRow
               label="Strip Comments"
               description="Remove single-line and multi-line comments from code files"
               checked={options.stripComments}
               onCheckedChange={(val) => update({ stripComments: val })}
             />
 
-            <OptionRow
+            <ToggleRow
               label="Reduce Whitespace"
               description="Collapse multiple blank lines and trim trailing whitespace"
               checked={options.reduceWhitespace}
               onCheckedChange={(val) => update({ reduceWhitespace: val })}
             />
 
-            <OptionRow
-              label="AST Dead-Code Elimination"
+            <ToggleRow
+              label="AST Dead-Code"
               description="Use Tree-sitter to remove unreachable functions/classes from JS/TS/Python/Rust/Go"
               checked={options.astDeadCode}
               onCheckedChange={(val) => update({ astDeadCode: val })}
             >
               {options.astDeadCode && (
-                <div className="pl-2 border-l-2 border-primary/30">
-                  <Label className="text-xs text-muted-foreground">Entry Point File</Label>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Select an entry point file in the file tree and enable AST analysis via the Pack
-                    button
+                <div className="ml-2 pl-2 border-l-2 border-primary/20 mt-1">
+                  <p className="text-[10px] text-muted-foreground">
+                    Select an entry point file in the tree
                   </p>
                 </div>
               )}
-            </OptionRow>
+            </ToggleRow>
 
-            <OptionRow
+            <ToggleRow
               label="Minify Markdown"
               description="Strip badges, HTML comments, div/img/br tags from .md files"
               checked={options.minifyMarkdown}
@@ -184,61 +205,56 @@ export function PackOptions({ options, onChange, maxPacks, selectedFiles }: Pack
               disabled={!hasMarkdownFiles}
             >
               {options.minifyMarkdown && hasMarkdownFiles && (
-                <div className="pl-2 border-l-2 border-primary/30 space-y-2">
-                  <label className="flex items-center gap-2 cursor-pointer">
+                <div className="ml-2 pl-2 border-l-2 border-primary/20 mt-1 space-y-1">
+                  <label className="flex items-center gap-1.5 cursor-pointer">
                     <input
                       type="checkbox"
                       checked={options.stripMarkdownHeadings}
                       onChange={(e) => update({ stripMarkdownHeadings: e.target.checked })}
-                      className="h-3 w-3"
+                      className="h-3 w-3 accent-primary"
                     />
-                    <span className="text-xs text-muted-foreground">Strip headings</span>
+                    <span className="text-[10px] text-muted-foreground">Strip headings</span>
                   </label>
-                  <label className="flex items-center gap-2 cursor-pointer">
+                  <label className="flex items-center gap-1.5 cursor-pointer">
                     <input
                       type="checkbox"
                       checked={options.stripMarkdownBlockquotes}
                       onChange={(e) => update({ stripMarkdownBlockquotes: e.target.checked })}
-                      className="h-3 w-3"
+                      className="h-3 w-3 accent-primary"
                     />
-                    <span className="text-xs text-muted-foreground">Strip blockquotes</span>
+                    <span className="text-[10px] text-muted-foreground">Strip blockquotes</span>
                   </label>
                 </div>
               )}
-            </OptionRow>
+            </ToggleRow>
           </div>
         </CollapsibleContent>
       </Collapsible>
 
+      <div className="h-px bg-border/60 mx-2" />
+
       {/* Include/Exclude Rules */}
       <Collapsible open={ignoreOpen} onOpenChange={setIgnoreOpen}>
-        <CollapsibleTrigger className="flex items-center justify-between w-full px-3 py-2 hover:bg-muted/50 rounded-md transition-colors">
-          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-            Include / Exclude
-          </span>
-          {ignoreOpen ? (
-            <ChevronDown className="h-3 w-3 text-muted-foreground" />
-          ) : (
-            <ChevronRight className="h-3 w-3 text-muted-foreground" />
-          )}
+        <CollapsibleTrigger className="w-full hover:bg-muted/50 rounded transition-colors">
+          <SectionHeader label="Filters" isOpen={ignoreOpen} />
         </CollapsibleTrigger>
         <CollapsibleContent>
-          <div className="px-3 py-2 space-y-4">
-            <OptionRow
+          <div className="px-2 pb-2 space-y-2">
+            <ToggleRow
               label="Respect .gitignore"
               description="Automatically exclude files listed in .gitignore"
               checked={options.respectGitignore}
               onCheckedChange={(val) => update({ respectGitignore: val })}
             />
 
-            <div className="space-y-1.5">
-              <Label className="text-sm">Custom Ignore Patterns</Label>
-              <p className="text-xs text-muted-foreground">One glob pattern per line</p>
+            <div className="space-y-1">
+              <span className="text-xs text-foreground/80">Ignore Patterns</span>
+              <p className="text-[10px] text-muted-foreground/60">One glob per line</p>
               <textarea
                 value={options.customIgnorePatterns}
                 onChange={(e) => update({ customIgnorePatterns: e.target.value })}
                 placeholder={"**/*.test.ts\n**/*.spec.*\n**/__mocks__/**"}
-                className="w-full h-24 text-xs font-mono bg-muted/50 border border-border rounded-md px-2 py-1.5 resize-none focus:outline-none focus:ring-1 focus:ring-ring"
+                className="w-full h-20 text-[11px] font-mono bg-muted/40 border border-border rounded px-2 py-1.5 resize-none focus:outline-none focus:ring-1 focus:ring-ring focus:bg-background placeholder:text-muted-foreground/40"
               />
             </div>
           </div>

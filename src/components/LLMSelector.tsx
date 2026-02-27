@@ -19,14 +19,14 @@ export function LLMSelector({ selectedId, onSelect }: LLMSelectorProps) {
   const isApprox = selected ? isApproximateTokenizer(selected.tokenizer) : false;
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-1.5 flex-1">
       <Select value={selectedId} onValueChange={onSelect}>
-        <SelectTrigger className="w-[220px] bg-background/50">
-          <SelectValue placeholder="Select LLM..." />
+        <SelectTrigger className="flex-1 h-7 text-xs bg-background border-border hover:border-primary/50 focus:ring-1 focus:ring-ring">
+          <SelectValue placeholder="Select model..." />
         </SelectTrigger>
-        <SelectContent>
+        <SelectContent className="text-xs">
           {LLM_PROFILES.map((profile) => (
-            <SelectItem key={profile.id} value={profile.id}>
+            <SelectItem key={profile.id} value={profile.id} className="text-xs py-1">
               {profile.name}
             </SelectItem>
           ))}
@@ -35,10 +35,10 @@ export function LLMSelector({ selectedId, onSelect }: LLMSelectorProps) {
       {isApprox && (
         <Tooltip>
           <TooltipTrigger asChild>
-            <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+            <Info className="h-3.5 w-3.5 text-muted-foreground/60 cursor-help shrink-0" />
           </TooltipTrigger>
-          <TooltipContent>
-            <p className="max-w-[200px]">
+          <TooltipContent side="bottom">
+            <p className="max-w-[180px] text-xs">
               Token count is an estimate using cl100k encoding. Actual counts may vary.
             </p>
           </TooltipContent>

@@ -1,4 +1,3 @@
-import { AlertCircle, AlertTriangle } from "lucide-react";
 import { cn, formatTokenCount } from "@/lib/utils";
 
 interface TokenBarProps {
@@ -16,28 +15,48 @@ export function TokenBar({ usedTokens, maxTokens, selectedFileCount, numPacks }:
   const barColor = isError
     ? "bg-red-500"
     : isWarning
-      ? "bg-orange-500"
+      ? "bg-amber-500"
       : percentage >= 60
-        ? "bg-yellow-500"
+        ? "bg-yellow-400"
         : "bg-emerald-500";
 
+  const textColor = isError
+    ? "text-red-600 dark:text-red-400"
+    : isWarning
+      ? "text-amber-600 dark:text-amber-400"
+      : "text-foreground";
+
   return (
-    <div className="space-y-2 p-3 rounded-lg bg-muted/30 border border-border/50">
+    <div className="space-y-1.5">
       <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          {isError && <AlertCircle className="h-4 w-4 text-red-500 shrink-0" />}
-          {isWarning && !isError && <AlertTriangle className="h-4 w-4 text-orange-500 shrink-0" />}
-          <span className={cn("text-sm font-medium tabular-nums", isError && "text-red-400")}>
-            {formatTokenCount(usedTokens)} / {formatTokenCount(maxTokens)} tokens
+        <div className="flex items-center gap-1.5">
+          <span className={cn("text-xs font-mono font-medium tabular-nums", textColor)}>
+            {formatTokenCount(usedTokens)}
+            <span className="text-muted-foreground font-normal">
+              {" "}
+              / {formatTokenCount(maxTokens)}
+            </span>
           </span>
-          <span className="text-xs text-muted-foreground">({percentage.toFixed(0)}%)</span>
+          <span
+            className={cn(
+              "text-[10px] font-mono px-1 py-0.5 rounded",
+              isError
+                ? "bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400"
+                : isWarning
+                  ? "bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400"
+                  : "bg-muted text-muted-foreground"
+            )}
+          >
+            {percentage.toFixed(0)}%
+          </span>
         </div>
-        <div className="text-xs text-muted-foreground">
-          {selectedFileCount} files · {numPacks} {numPacks === 1 ? "pack" : "packs"}
+        <div className="text-[10px] text-muted-foreground font-mono">
+          {selectedFileCount} files · {numPacks}×
         </div>
       </div>
 
-      <div className="relative h-2 w-full bg-muted rounded-full overflow-hidden">
+      {/* Progress bar */}
+      <div className="relative h-1.5 w-full bg-muted rounded-full overflow-hidden">
         <div
           className={cn("h-full rounded-full transition-all duration-300", barColor)}
           style={{ width: `${percentage}%` }}
@@ -45,8 +64,8 @@ export function TokenBar({ usedTokens, maxTokens, selectedFileCount, numPacks }:
       </div>
 
       {isError && (
-        <p className="text-xs text-red-400">
-          Exceeds context window — deselect files or enable more optimizations
+        <p className="text-[10px] text-red-500 dark:text-red-400">
+          Exceeds context window — deselect files or enable optimizations
         </p>
       )}
     </div>
