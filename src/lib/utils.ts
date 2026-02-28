@@ -146,14 +146,18 @@ export function stripComments(content: string, extension: string): string {
   return content;
 }
 
-const WHITESPACE_SENSITIVE_EXTENSIONS = new Set(["py", "yaml", "yml", "makefile"]);
+const WHITESPACE_SENSITIVE_EXTENSIONS = new Set(["py", "yaml", "yml", "mk"]);
+const WHITESPACE_SENSITIVE_FILENAMES = new Set(["makefile", "gnumakefile"]);
 
-export function reduceWhitespace(content: string, extension?: string): string {
+export function reduceWhitespace(content: string, extension?: string, filePath?: string): string {
   // Collapse multiple blank lines into one
   let result = content.replace(/\n{3,}/g, "\n\n");
   // Trim trailing whitespace from each line
   const ext = extension?.toLowerCase();
-  const preserveIndentation = ext ? WHITESPACE_SENSITIVE_EXTENSIONS.has(ext) : false;
+  const fileName = filePath?.replace(/\\/g, "/").split("/").pop()?.toLowerCase();
+  const preserveIndentation =
+    (ext ? WHITESPACE_SENSITIVE_EXTENSIONS.has(ext) : false) ||
+    (fileName ? WHITESPACE_SENSITIVE_FILENAMES.has(fileName) : false);
   result = result
     .split("\n")
     .map((line) => {

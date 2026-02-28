@@ -28,6 +28,7 @@ ignore = "0.4"
 glob = "0.3"
 anyhow = "1"
 uuid = { version = "1", features = ["v4"] }
+tokio = { version = "1", features = ["fs"] }
 tree-sitter = "0.24"
 tree-sitter-javascript = "0.23"
 tree-sitter-typescript = "0.23"
@@ -42,4 +43,3 @@ codegen-units = 1
 strip = true
 panic = "abort"
 incremental = false
-

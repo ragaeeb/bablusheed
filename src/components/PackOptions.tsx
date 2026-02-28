@@ -1,5 +1,5 @@
 import { ChevronDown, ChevronRight, Info } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -105,18 +105,21 @@ export function PackOptions({
   const astEligibleFiles = selectedFiles.filter(
     (f) => !f.isDir && AST_SUPPORTED_EXTENSIONS.has(f.extension.toLowerCase())
   );
+  const eligiblePathSet = useMemo(
+    () => new Set(astEligibleFiles.map((f) => f.path)),
+    [astEligibleFiles]
+  );
 
   const update = (partial: Partial<PackOptionsType>) => {
     onChange({ ...options, ...partial });
   };
 
-  // Revalidate entryPoint whenever the eligible file set changes:
-  // if the current entryPoint is no longer in the eligible set, clear it.
-  const eligiblePaths = new Set(astEligibleFiles.map((f) => f.path));
-  if (options.entryPoint && !eligiblePaths.has(options.entryPoint)) {
-    // Use setTimeout to avoid calling onChange during render
-    setTimeout(() => onChange({ ...options, entryPoint: null }), 0);
-  }
+  // Revalidate entryPoint when eligible files change.
+  useEffect(() => {
+    if (options.entryPoint && !eligiblePathSet.has(options.entryPoint)) {
+      onChange({ ...options, entryPoint: null });
+    }
+  }, [eligiblePathSet, onChange, options]);
 
   return (
     <div className="space-y-0">

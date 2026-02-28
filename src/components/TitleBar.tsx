@@ -36,6 +36,7 @@ export function TitleBar({ theme, onToggleTheme }: TitleBarProps) {
         <button
           type="button"
           onClick={onToggleTheme}
+          aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
           className="h-6 w-6 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
           title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
         >
@@ -47,6 +48,7 @@ export function TitleBar({ theme, onToggleTheme }: TitleBarProps) {
         {/* Window controls */}
         <button
           type="button"
+          aria-label="Minimize"
           onClick={() => {
             appWindow.minimize().catch((err) => {
               console.error("minimize failed:", err);
@@ -59,6 +61,7 @@ export function TitleBar({ theme, onToggleTheme }: TitleBarProps) {
         </button>
         <button
           type="button"
+          aria-label="Maximize"
           onClick={() => {
             appWindow.toggleMaximize().catch((err) => {
               console.error("toggleMaximize failed:", err);
@@ -71,6 +74,7 @@ export function TitleBar({ theme, onToggleTheme }: TitleBarProps) {
         </button>
         <button
           type="button"
+          aria-label="Close"
           onClick={() => {
             appWindow.close().catch((err) => {
               console.error("close failed:", err);

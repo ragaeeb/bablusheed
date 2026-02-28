@@ -24,7 +24,8 @@ function updateJsonVersion(filePath, version) {
 
 function updateCargoTomlVersion(filePath, version) {
   const raw = readFileSync(filePath, "utf8");
-  const lines = raw.split(/\r?\n/);
+  const eol = raw.includes("\r\n") ? "\r\n" : "\n";
+  const lines = raw.split(eol);
 
   let inPackage = false;
   let updated = false;
@@ -48,7 +49,7 @@ function updateCargoTomlVersion(filePath, version) {
     throw new Error(`Could not find [package].version in ${filePath}`);
   }
 
-  writeFileSync(filePath, `${lines.join("\n")}\n`, "utf8");
+  writeFileSync(filePath, `${lines.join(eol)}${eol}`, "utf8");
 }
 
 function run() {

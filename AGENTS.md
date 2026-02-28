@@ -112,7 +112,7 @@ Sources of truth:
 
 - `src-tauri/icons/icon.png`
 - `src-tauri/icons/icon.icns`
-- `public/vite.svg`
+- `public/favicon.svg`
 
 Regenerate:
 

@@ -108,6 +108,7 @@ export function stripUnreachableSymbols(content: string, symbols: string[], ext:
         "$1"
       );
     } else if (ext === "go") {
+      // NOTE: Only single-line function bodies are stripped; multiline Go functions are preserved.
       result = result.replace(
         new RegExp(
           `(^|\\n)(?![ \\t])func\\s+(?:\\([^)]+\\)\\s+)?${escaped}\\s*\\([^)]*\\)\\s*\\{[^\\n]*\\}\\s*(?=\\n|$)`,

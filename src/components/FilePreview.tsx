@@ -68,7 +68,7 @@ export function FilePreview({
 
     setIsLoading(true);
     onLoadContent(filePath).finally(() => setIsLoading(false));
-  }, [filePath, onLoadContent]);
+  }, [fileContents, filePath, onLoadContent]);
 
   // Close on Escape
   useEffect(() => {
@@ -92,7 +92,7 @@ export function FilePreview({
     optimizedContent = stripComments(optimizedContent, file.extension);
   }
   if (packOptions.reduceWhitespace) {
-    optimizedContent = reduceWhitespace(optimizedContent, file.extension);
+    optimizedContent = reduceWhitespace(optimizedContent, file.extension, file.relativePath);
   }
   if (packOptions.minifyMarkdown && ext === "md") {
     optimizedContent = minifyMarkdown(

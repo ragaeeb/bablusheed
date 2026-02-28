@@ -92,7 +92,7 @@ describe("splitContentByTokenBudget", () => {
   });
 
   it("should split at paragraph boundaries when possible", () => {
-    const content = "a".repeat(60) + "\n\n" + "b".repeat(60);
+    const content = `${"a".repeat(60)}\n\n${"b".repeat(60)}`;
     const chunks = splitContentByTokenBudget(content, 20); // ~80 chars
     expect(chunks.length).toBeGreaterThan(1);
     expect(chunks.join("")).toBe(content);
@@ -100,7 +100,7 @@ describe("splitContentByTokenBudget", () => {
   });
 
   it("should split at line boundaries when paragraph boundaries are unavailable", () => {
-    const content = "a".repeat(50) + "\n" + "b".repeat(50) + "\n" + "c".repeat(50);
+    const content = `${"a".repeat(50)}\n${"b".repeat(50)}\n${"c".repeat(50)}`;
     const chunks = splitContentByTokenBudget(content, 20); // ~80 chars
     expect(chunks.length).toBeGreaterThan(1);
     expect(chunks.join("")).toBe(content);

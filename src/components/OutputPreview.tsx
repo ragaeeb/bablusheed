@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { join } from "@tauri-apps/api/path";
+import { dirname, join } from "@tauri-apps/api/path";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import {
@@ -113,6 +113,8 @@ function PackContent({
         filters: [{ name: "Text Files", extensions: ["txt"] }],
       });
       if (path) {
+        const exportDir = await dirname(path);
+        await invoke("authorize_export_directory", { path: exportDir });
         await invoke("write_file_content", { path, content });
         setSaved(true);
         setTimeout(() => setSaved(false), 2000);
@@ -236,6 +238,7 @@ export function OutputPreview({
         title: "Select folder for exported packs",
       });
       if (!folder || typeof folder !== "string") return;
+      await invoke("authorize_export_directory", { path: folder });
 
       for (const pack of packResult.packs) {
         const filename = `bablusheed_pack_${pack.index + 1}_of_${packResult.packs.length}.txt`;

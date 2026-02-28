@@ -45,14 +45,15 @@ export function usePackager(
         if (file.isDir) continue;
         const baseContent = astProcessedContentMap.get(file.path) ?? "";
         let content = baseContent;
+        const ext = file.extension.toLowerCase();
 
         if (options.stripComments) {
-          content = stripComments(content, file.extension);
+          content = stripComments(content, ext);
         }
         if (options.reduceWhitespace) {
-          content = reduceWhitespace(content, file.extension);
+          content = reduceWhitespace(content, ext, file.relativePath);
         }
-        if (options.minifyMarkdown && file.extension === "md") {
+        if (options.minifyMarkdown && (ext === "md" || ext === "mdx")) {
           content = minifyMarkdown(
             content,
             options.stripMarkdownHeadings,

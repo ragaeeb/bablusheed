@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { dirname } from "@tauri-apps/api/path";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { load } from "@tauri-apps/plugin-store";
 import {
@@ -14,7 +15,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { EmptyState } from "@/components/EmptyState";
 import { FilePreview } from "@/components/FilePreview";
 import { FileTree } from "@/components/FileTree";
@@ -36,7 +37,7 @@ import {
 } from "@/lib/pack-strategy";
 import { useRenderDiagnostics } from "@/lib/render-diagnostics";
 import { cn } from "@/lib/utils";
-import type { FileNode, FileTreeNode, PackOptions as PackOptionsType } from "@/types";
+import type { FileNode, PackOptions as PackOptionsType } from "@/types";
 
 const DEFAULT_PACK_OPTIONS: PackOptionsType = {
   numPacks: 3,
@@ -318,14 +319,13 @@ export default function App() {
     return map;
   })();
   const selectedAbsolutePaths = selectedFiles.filter((f) => !f.isDir).map((f) => f.path);
-  const selectedAbsolutePathKey = selectedAbsolutePaths.join("\u0001");
 
   // Update token counts in tree when tokenMap changes
   useEffect(() => {
     if (tokenMap.size > 0) {
       updateTokens(tokenMap);
     }
-  }, [tokenMap]);
+  }, [tokenMap, updateTokens]);
 
   // Load settings from store on startup
   useEffect(() => {
@@ -386,8 +386,10 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [theme, selectedLlmId, packOptions]);
 
-  const readProjectFile = async (path: string): Promise<string> =>
-    invoke<string>("read_file_content", { path });
+  const readProjectFile = useCallback(
+    async (path: string): Promise<string> => invoke<string>("read_file_content", { path }),
+    []
+  );
 
   // 3c: Lazy file content loading — load on demand, cache in fileContents.
   // Uses functional updater to check existence inside the updater so fileContents
@@ -444,7 +446,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [selectedAbsolutePathKey, fileContents]);
+  }, [fileContents, readProjectFile, selectedAbsolutePaths]);
 
   // 3i: loadProject reads from refs, stable reference
   const loadProject = async (folderPath: string) => {
@@ -593,6 +595,8 @@ export default function App() {
         filters: [{ name: "Log Files", extensions: ["log", "txt"] }],
       });
       if (!path) return;
+      const exportDir = await dirname(path);
+      await invoke("authorize_export_directory", { path: exportDir });
 
       const header = [
         "Bablusheed Debug Log",

@@ -250,6 +250,7 @@ dependencies = [
  "tauri-plugin-fs",
  "tauri-plugin-opener",
  "tauri-plugin-store",
+ "tokio",
  "tree-sitter",
  "tree-sitter-go",
  "tree-sitter-javascript",

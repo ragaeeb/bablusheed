@@ -10,7 +10,12 @@ interface SliderProps {
   max?: number;
   step?: number;
   disabled?: boolean;
-  onValueChange?: (value: number[]) => void;
+  onValueChange?: (
+    value: number[],
+    details: Parameters<
+      NonNullable<React.ComponentProps<typeof SliderPrimitive.Root>["onValueChange"]>
+    >[1]
+  ) => void;
 }
 
 const Slider = React.forwardRef<HTMLDivElement, SliderProps>(
@@ -29,9 +34,9 @@ const Slider = React.forwardRef<HTMLDivElement, SliderProps>(
         max={max}
         step={step}
         disabled={disabled}
-        onValueChange={(next: number | readonly number[]) => {
-          const values = Array.isArray(next) ? next : [next];
-          onValueChange?.(values);
+        onValueChange={(next: number | readonly number[], details) => {
+          const values = Array.isArray(next) ? [...next] : [next];
+          onValueChange?.(values, details);
         }}
         className={cn("relative flex w-full touch-none select-none items-center", className)}
       >
@@ -41,7 +46,7 @@ const Slider = React.forwardRef<HTMLDivElement, SliderProps>(
           </SliderPrimitive.Track>
           {Array.from({ length: thumbCount }).map((_, index) => (
             <SliderPrimitive.Thumb
-              key={index}
+              key={`thumb-${index.toString()}`}
               className="block h-4 w-4 rounded-full border border-primary/50 bg-background shadow transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
             />
           ))}

@@ -63,10 +63,12 @@ function run() {
   const iconPng = readFileSync(sourcePng);
   const iconIcns = readFileSync(sourceIcns);
 
-  generateDesktopIcons();
-
-  writeFileSync(sourcePng, iconPng);
-  writeFileSync(sourceIcns, iconIcns);
+  try {
+    generateDesktopIcons();
+  } finally {
+    writeFileSync(sourcePng, iconPng);
+    writeFileSync(sourceIcns, iconIcns);
+  }
 
   pruneNonDesktopIcons();
   ensureOutputs();

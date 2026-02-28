@@ -2,7 +2,7 @@ pub mod commands;
 pub mod models;
 
 use commands::ast::analyze_reachability;
-use commands::fs::{read_file_content, walk_directory, write_file_content};
+use commands::fs::{authorize_export_directory, read_file_content, walk_directory, write_file_content};
 use commands::pack::pack_files;
 #[cfg(target_os = "macos")]
 use tauri::menu::{AboutMetadata, MenuBuilder, SubmenuBuilder};
@@ -94,6 +94,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             walk_directory,
             read_file_content,
+            authorize_export_directory,
             write_file_content,
             pack_files,
             analyze_reachability,

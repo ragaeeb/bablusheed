@@ -1,7 +1,10 @@
 use crate::models::FileNode;
 use anyhow::Result;
 use ignore::WalkBuilder;
-use std::path::Path;
+use std::path::{Component, Path, PathBuf};
+use std::sync::{LazyLock, Mutex};
+use tauri::async_runtime;
+use tokio::fs as tokio_fs;
 use uuid::Uuid;
 
 const BINARY_EXTENSIONS: &[&str] = &[
@@ -24,6 +27,72 @@ const ALWAYS_EXCLUDED_DIRS: &[&str] = &[
     ".turbo",
     ".cache",
 ];
+
+#[derive(Default)]
+struct FsScopeState {
+    project_roots: Vec<PathBuf>,
+    export_roots: Vec<PathBuf>,
+}
+
+static FS_SCOPE_STATE: LazyLock<Mutex<FsScopeState>> =
+    LazyLock::new(|| Mutex::new(FsScopeState::default()));
+
+fn path_has_parent_traversal(path: &Path) -> bool {
+    path.components()
+        .any(|component| matches!(component, Component::ParentDir))
+}
+
+fn canonicalize_existing_path(path: &Path) -> Result<PathBuf, String> {
+    std::fs::canonicalize(path).map_err(|e| e.to_string())
+}
+
+fn canonicalize_for_write(path: &Path) -> Result<PathBuf, String> {
+    if path.exists() {
+        return canonicalize_existing_path(path);
+    }
+
+    let mut probe = path;
+    while !probe.exists() {
+        probe = probe
+            .parent()
+            .ok_or_else(|| format!("Path has no existing parent: {}", path.display()))?;
+    }
+
+    let canonical_existing = canonicalize_existing_path(probe)?;
+    let relative_suffix = path
+        .strip_prefix(probe)
+        .map_err(|e| format!("Failed to resolve target path: {e}"))?;
+
+    Ok(canonical_existing.join(relative_suffix))
+}
+
+fn remember_project_root(root: PathBuf) {
+    if let Ok(mut state) = FS_SCOPE_STATE.lock() {
+        if !state.project_roots.iter().any(|existing| existing == &root) {
+            state.project_roots.push(root);
+        }
+    }
+}
+
+fn remember_export_root(root: PathBuf) {
+    if let Ok(mut state) = FS_SCOPE_STATE.lock() {
+        if !state.export_roots.iter().any(|existing| existing == &root) {
+            state.export_roots.push(root);
+        }
+    }
+}
+
+fn is_path_allowed(target: &Path) -> bool {
+    if let Ok(state) = FS_SCOPE_STATE.lock() {
+        state
+            .project_roots
+            .iter()
+            .chain(state.export_roots.iter())
+            .any(|root| target.starts_with(root))
+    } else {
+        false
+    }
+}
 
 fn is_binary_by_extension(ext: &str) -> bool {
     BINARY_EXTENSIONS.contains(&ext.to_lowercase().as_str())
@@ -170,6 +239,9 @@ pub async fn walk_directory(
     };
 
     let mut nodes = build_tree(root, root, respect_gitignore).map_err(|e| e.to_string())?;
+    if let Ok(canonical_root) = canonicalize_existing_path(root) {
+        remember_project_root(canonical_root);
+    }
 
     // Apply custom ignore patterns as post-filter if we couldn't add them to walker
     if let Some(_ignore_file) = temp_ignore_file {
@@ -204,20 +276,71 @@ pub async fn walk_directory(
 
 #[tauri::command]
 pub async fn read_file_content(path: String) -> Result<String, String> {
-    let file_path = Path::new(&path);
-    if !file_path.exists() || !file_path.is_file() {
+    let file_path = PathBuf::from(&path);
+    if path_has_parent_traversal(&file_path) {
+        return Err(format!("Parent traversal is not allowed: {path}"));
+    }
+    let metadata = tokio_fs::metadata(&file_path).await.map_err(|_| {
+        format!("Path does not exist or is not a file: {}", path)
+    })?;
+    if !metadata.is_file() {
         return Err(format!("Path does not exist or is not a file: {}", path));
     }
 
-    let bytes = std::fs::read(file_path).map_err(|e| e.to_string())?;
-    Ok(String::from_utf8_lossy(&bytes).to_string())
+    let canonical_path = tokio_fs::canonicalize(&file_path)
+        .await
+        .map_err(|e| e.to_string())?;
+    if !is_path_allowed(&canonical_path) {
+        return Err(format!("Read path is outside allowed roots: {}", path));
+    }
+
+    let bytes = tokio_fs::read(&canonical_path)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(String::from_utf8_lossy(&bytes).into_owned())
+}
+
+#[tauri::command]
+pub async fn authorize_export_directory(path: String) -> Result<(), String> {
+    let dir_path = PathBuf::from(&path);
+    if path_has_parent_traversal(&dir_path) {
+        return Err(format!("Parent traversal is not allowed: {path}"));
+    }
+    if !dir_path.exists() || !dir_path.is_dir() {
+        return Err(format!("Export directory does not exist or is not a directory: {}", path));
+    }
+    let canonical = canonicalize_existing_path(&dir_path)?;
+    remember_export_root(canonical);
+    Ok(())
 }
 
 #[tauri::command]
 pub async fn write_file_content(path: String, content: String) -> Result<(), String> {
-    let file_path = Path::new(&path);
-    if let Some(parent) = file_path.parent() {
-        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    let file_path = PathBuf::from(&path);
+    if path_has_parent_traversal(&file_path) {
+        return Err(format!("Parent traversal is not allowed: {path}"));
     }
-    std::fs::write(file_path, content).map_err(|e| e.to_string())
+
+    if let Ok(metadata) = std::fs::metadata(&file_path) {
+        if metadata.is_dir() {
+            return Err(format!("Path is a directory: {}", path));
+        }
+    }
+
+    let canonical_target = canonicalize_for_write(&file_path)?;
+    if !is_path_allowed(&canonical_target) {
+        return Err(format!("Write path is outside allowed roots: {}", path));
+    }
+
+    let write_path = file_path.clone();
+    async_runtime::spawn_blocking(move || -> Result<(), String> {
+        if let Some(parent) = write_path.parent() {
+            std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        }
+        std::fs::write(write_path, content).map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())??;
+
+    Ok(())
 }

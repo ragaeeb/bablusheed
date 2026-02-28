@@ -489,6 +489,13 @@ fn distribute_with_doc_strategy(
         .sum();
     let docs_tokens: usize = docs.iter().map(|idx| token_counts[*idx]).sum();
 
+    if total_tokens == 0 {
+        let mut merged = Vec::with_capacity(docs.len() + code.len());
+        merged.extend_from_slice(docs);
+        merged.extend_from_slice(code);
+        return distribute_files(&merged, num_packs, token_counts);
+    }
+
     // Allocate at least one docs pack and one code pack; use proportional split for context balance.
     let mut docs_pack_count = ((docs_tokens * num_packs) + (total_tokens / 2)) / total_tokens;
     docs_pack_count = docs_pack_count.clamp(1, num_packs - 1);

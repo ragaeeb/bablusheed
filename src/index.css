@@ -73,7 +73,8 @@
   --color-input: hsl(var(--input));
   --color-ring: hsl(var(--ring));
   --font-mono:
-    "JetBrains Mono", "Fira Code", "Cascadia Code", Menlo, Monaco, "Consolas", "Courier New";
+    "JetBrains Mono", "Fira Code", "Cascadia Code", Menlo, Monaco, "Consolas", "Courier New",
+    monospace;
 }
 
 @layer base {
@@ -105,7 +106,8 @@
   input,
   .font-mono {
     font-family:
-      "JetBrains Mono", "Fira Code", "Cascadia Code", Menlo, Monaco, "Consolas", "Courier New";
+      "JetBrains Mono", "Fira Code", "Cascadia Code", Menlo, Monaco, "Consolas", "Courier New",
+      monospace;
     font-weight: 400;
     -webkit-user-select: text;
     user-select: text;
@@ -124,8 +126,8 @@
 
 /* Keep select dropdown fully opaque and separated from underlying layout */
 [data-slot="select-content"] {
-  background-color: hsl(var(--popover)) !important;
-  opacity: 1 !important;
+  background-color: hsl(var(--popover));
+  opacity: 1;
 }
 
 /* Scrollbar styling - minimal and clean */
