@@ -27,7 +27,8 @@ export interface FlatTreeItem {
 
 export interface PackOptions {
   numPacks: number;
-  outputFormat: "plaintext" | "markdown" | "xml";
+  maxTokensPerPackFile: number;
+  outputFormat: "plaintext" | "markdown";
   stripComments: boolean;
   reduceWhitespace: boolean;
   astDeadCode: boolean;
@@ -46,7 +47,7 @@ export interface PackRequest {
     tokenCount?: number;
   }>;
   numPacks: number;
-  outputFormat: "plaintext" | "markdown" | "xml";
+  outputFormat: "plaintext" | "markdown";
   llmProfileId: string;
 }
 
@@ -88,11 +89,13 @@ export interface TokenCountResult {
 
 export interface WorkerMessage {
   type: "count";
+  requestId: number;
   files: Array<{ path: string; content: string }>;
-  encoding: "cl100k_base" | "o200k_base";
+  strategy: "openai" | "approx";
 }
 
 export interface WorkerResult {
   type: "result";
+  requestId: number;
   results: TokenCountResult[];
 }

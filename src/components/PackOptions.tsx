@@ -1,16 +1,23 @@
 import { ChevronDown, ChevronRight, Info } from "lucide-react";
 import { useState } from "react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { AST_SUPPORTED_EXTENSIONS } from "@/lib/ast-reachability";
+import {
+  deriveAdvisoryMaxTokensPerFile,
+  resolveAdvisoryMaxTokensPerFile,
+} from "@/lib/pack-strategy";
 import { cn } from "@/lib/utils";
 import type { FileTreeNode, PackOptions as PackOptionsType } from "@/types";
 
-interface PackOptionsProps {
+type PackOptionsProps = {
   options: PackOptionsType;
   onChange: (options: PackOptionsType) => void;
   maxPacks: number;
   selectedFiles: FileTreeNode[];
-}
+  contextWindowTokens: number;
+};
 
 function SectionHeader({ label, isOpen }: { label: string; isOpen: boolean }) {
   return (
@@ -51,7 +58,7 @@ function ToggleRow({
           </span>
           {description && (
             <Tooltip>
-              <TooltipTrigger asChild>
+              <TooltipTrigger className="inline-flex items-center">
                 <Info className="h-3 w-3 text-muted-foreground/50 cursor-help" />
               </TooltipTrigger>
               <TooltipContent side="right">
@@ -60,43 +67,39 @@ function ToggleRow({
             </Tooltip>
           )}
         </div>
-        {/* Custom toggle switch */}
-        <button
-          type="button"
-          role="switch"
-          aria-checked={checked}
+        <Switch
+          aria-label={label}
+          checked={checked}
+          onCheckedChange={onCheckedChange}
           disabled={disabled}
-          onClick={() => !disabled && onCheckedChange(!checked)}
-          className={cn(
-            "relative inline-flex h-4 w-7 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors",
-            checked ? "bg-primary" : "bg-muted-foreground/25",
-            disabled && "opacity-40 cursor-not-allowed"
-          )}
-        >
-          <span
-            className={cn(
-              "pointer-events-none inline-block h-3 w-3 rounded-full bg-white shadow-sm transition-transform",
-              checked ? "translate-x-3" : "translate-x-0"
-            )}
-          />
-        </button>
+          className={cn(disabled && "opacity-40")}
+        />
       </div>
       {children}
     </div>
   );
 }
 
-const AST_SUPPORTED_EXTENSIONS = new Set(["ts", "tsx", "js", "jsx", "py", "rs", "go"]);
-
 // Derive the display hint from the constant so it always matches the actual supported list
 const AST_SUPPORTED_EXTENSIONS_HINT = Array.from(AST_SUPPORTED_EXTENSIONS).join(", ");
 
-export function PackOptions({ options, onChange, maxPacks, selectedFiles }: PackOptionsProps) {
+export function PackOptions({
+  options,
+  onChange,
+  maxPacks,
+  selectedFiles,
+  contextWindowTokens,
+}: PackOptionsProps) {
   const [outputOpen, setOutputOpen] = useState(true);
   const [optimizeOpen, setOptimizeOpen] = useState(true);
   const [ignoreOpen, setIgnoreOpen] = useState(false);
 
   const hasMarkdownFiles = selectedFiles.some((f) => f.extension === "md");
+  const autoAdvisoryMax = deriveAdvisoryMaxTokensPerFile(contextWindowTokens);
+  const effectiveAdvisoryMax = resolveAdvisoryMaxTokensPerFile(
+    options.maxTokensPerPackFile,
+    contextWindowTokens
+  );
 
   // Files eligible as AST entry points
   const astEligibleFiles = selectedFiles.filter(
@@ -127,7 +130,7 @@ export function PackOptions({ options, onChange, maxPacks, selectedFiles }: Pack
             {/* Number of packs */}
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
-                <span className="text-xs text-foreground/80">Packs</span>
+                <span className="text-xs text-foreground/80">Number of output packs</span>
                 <span className="text-xs font-mono font-semibold text-primary">
                   {options.numPacks}
                 </span>
@@ -158,23 +161,50 @@ export function PackOptions({ options, onChange, maxPacks, selectedFiles }: Pack
             {/* Output format */}
             <div className="space-y-1.5">
               <span className="text-xs text-foreground/80">Format</span>
-              <div className="grid grid-cols-3 gap-1 mt-1">
-                {(["plaintext", "markdown", "xml"] as const).map((fmt) => (
+              <div className="grid grid-cols-2 gap-1 mt-1">
+                {(["plaintext", "markdown"] as const).map((fmt) => (
                   <button
                     key={fmt}
                     type="button"
                     onClick={() => update({ outputFormat: fmt })}
                     className={cn(
-                      "py-1 text-[10px] font-medium rounded border transition-colors",
+                      "py-1 text-[10px] font-medium rounded border transition-colors cursor-pointer",
                       options.outputFormat === fmt
-                        ? "bg-primary text-primary-foreground border-primary"
+                        ? "bg-primary text-primary-foreground border-primary shadow-sm"
                         : "bg-transparent border-border text-muted-foreground hover:border-primary/50 hover:text-foreground"
                     )}
                   >
-                    {fmt === "plaintext" ? "Plain" : fmt === "markdown" ? "MD" : "XML"}
+                    {fmt === "plaintext" ? "Plain" : "Markdown"}
                   </button>
                 ))}
               </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-foreground/80">Advisory max tokens per file</span>
+                <span className="text-[10px] font-mono text-muted-foreground">
+                  effective: {effectiveAdvisoryMax.toLocaleString()}
+                </span>
+              </div>
+              <input
+                type="number"
+                min={0}
+                step={500}
+                value={options.maxTokensPerPackFile}
+                onChange={(e) => {
+                  const parsed = Number(e.target.value);
+                  update({
+                    maxTokensPerPackFile: Number.isFinite(parsed) ? Math.max(0, parsed) : 0,
+                  });
+                }}
+                className="w-full h-7 text-[11px] font-mono bg-muted/40 border border-border rounded px-2 focus:outline-none focus:ring-1 focus:ring-ring"
+              />
+              <p className="text-[10px] text-muted-foreground">
+                Use <span className="font-mono">0</span> for auto (
+                {autoAdvisoryMax.toLocaleString()} for this model). Oversized files are warned and
+                auto-split across packs.
+              </p>
             </div>
           </div>
         </CollapsibleContent>
@@ -207,7 +237,14 @@ export function PackOptions({ options, onChange, maxPacks, selectedFiles }: Pack
               label="AST Dead-Code"
               description="Use Tree-sitter to remove unreachable functions/classes from JS/TS/Python/Rust/Go"
               checked={options.astDeadCode}
-              onCheckedChange={(val) => update({ astDeadCode: val, entryPoint: null })}
+              onCheckedChange={(val) =>
+                update({
+                  astDeadCode: val,
+                  entryPoint: val
+                    ? (options.entryPoint ?? astEligibleFiles[0]?.path ?? null)
+                    : null,
+                })
+              }
             >
               {options.astDeadCode && (
                 <div className="ml-2 pl-2 border-l-2 border-primary/20 mt-1 space-y-1">

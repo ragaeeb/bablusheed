@@ -159,7 +159,7 @@ pub async fn walk_directory(
 
     // Write custom ignore patterns to a temp file if provided
     let temp_ignore_file = if !custom_ignore_patterns.is_empty() {
-        let tmp = std::env::temp_dir().join(".codepacker_ignore");
+        let tmp = std::env::temp_dir().join(".bablusheed_ignore");
         if std::fs::write(&tmp, custom_ignore_patterns.join("\n")).is_ok() {
             Some(tmp)
         } else {
@@ -200,4 +200,24 @@ pub async fn walk_directory(
     }
 
     Ok(nodes)
+}
+
+#[tauri::command]
+pub async fn read_file_content(path: String) -> Result<String, String> {
+    let file_path = Path::new(&path);
+    if !file_path.exists() || !file_path.is_file() {
+        return Err(format!("Path does not exist or is not a file: {}", path));
+    }
+
+    let bytes = std::fs::read(file_path).map_err(|e| e.to_string())?;
+    Ok(String::from_utf8_lossy(&bytes).to_string())
+}
+
+#[tauri::command]
+pub async fn write_file_content(path: String, content: String) -> Result<(), String> {
+    let file_path = Path::new(&path);
+    if let Some(parent) = file_path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    std::fs::write(file_path, content).map_err(|e| e.to_string())
 }

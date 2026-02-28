@@ -92,7 +92,7 @@ export function FilePreview({
     optimizedContent = stripComments(optimizedContent, file.extension);
   }
   if (packOptions.reduceWhitespace) {
-    optimizedContent = reduceWhitespace(optimizedContent);
+    optimizedContent = reduceWhitespace(optimizedContent, file.extension);
   }
   if (packOptions.minifyMarkdown && ext === "md") {
     optimizedContent = minifyMarkdown(

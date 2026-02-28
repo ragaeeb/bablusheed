@@ -146,13 +146,22 @@ export function stripComments(content: string, extension: string): string {
   return content;
 }
 
-export function reduceWhitespace(content: string): string {
+const WHITESPACE_SENSITIVE_EXTENSIONS = new Set(["py", "yaml", "yml", "makefile"]);
+
+export function reduceWhitespace(content: string, extension?: string): string {
   // Collapse multiple blank lines into one
   let result = content.replace(/\n{3,}/g, "\n\n");
   // Trim trailing whitespace from each line
+  const ext = extension?.toLowerCase();
+  const preserveIndentation = ext ? WHITESPACE_SENSITIVE_EXTENSIONS.has(ext) : false;
   result = result
     .split("\n")
-    .map((line) => line.trimEnd())
+    .map((line) => {
+      const trimmed = line.trimEnd();
+      if (preserveIndentation) return trimmed;
+      // Fully left-align in whitespace-insensitive formats to maximize token savings.
+      return trimmed.trimStart();
+    })
     .join("\n");
   // Trim leading/trailing whitespace from the whole content
   return result.trim();

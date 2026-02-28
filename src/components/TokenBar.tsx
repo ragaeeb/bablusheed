@@ -1,3 +1,4 @@
+import { evaluatePerPackAdvisory } from "@/lib/pack-strategy";
 import { cn, formatTokenCount } from "@/lib/utils";
 import type { PackOptions } from "@/types";
 
@@ -11,6 +12,7 @@ interface TokenBarProps {
   selectedFilePaths?: string[];
   onApplyOptimization?: (partial: Partial<PackOptions>) => void;
   onDeselectHeaviest?: (count: number) => void;
+  advisoryMaxTokensPerFile?: number;
 }
 
 export function TokenBar({
@@ -23,6 +25,7 @@ export function TokenBar({
   selectedFilePaths,
   onApplyOptimization,
   onDeselectHeaviest,
+  advisoryMaxTokensPerFile,
 }: TokenBarProps) {
   const percentage = maxTokens > 0 ? Math.min((usedTokens / maxTokens) * 100, 100) : 0;
   const isWarning = percentage >= 85;
@@ -44,6 +47,10 @@ export function TokenBar({
 
   // 2e: Compute actionable suggestions when over threshold
   const suggestions: Array<{ label: string; action: () => void }> = [];
+  const perPackStatus =
+    advisoryMaxTokensPerFile && selectedFileCount > 0
+      ? evaluatePerPackAdvisory(usedTokens, numPacks, advisoryMaxTokensPerFile)
+      : null;
 
   if (isWarning && packOptions && tokenMap && selectedFilePaths && onApplyOptimization) {
     // Suggestion: Strip Comments
@@ -110,17 +117,45 @@ export function TokenBar({
           </span>
         </div>
         <div className="text-[10px] text-muted-foreground font-mono">
-          {selectedFileCount} files · {numPacks}×
+          {selectedFileCount} files · {numPacks} packs
         </div>
       </div>
 
       {/* Progress bar */}
       <div className="relative h-1.5 w-full bg-muted rounded-full overflow-hidden">
         <div
-          className={cn("h-full rounded-full transition-all duration-300", barColor)}
+          className={cn(
+            "h-full rounded-full transition-all duration-300",
+            barColor,
+            percentage >= 60 && "bg-linear-to-r from-emerald-500 via-yellow-400 to-red-500"
+          )}
           style={{ width: `${percentage}%` }}
         />
       </div>
+
+      {perPackStatus && (
+        <div
+          className={cn(
+            "text-[10px] rounded border px-2 py-1.5 font-mono",
+            perPackStatus.level === "danger"
+              ? "border-red-400/40 bg-red-500/10 text-red-700 dark:text-red-300"
+              : perPackStatus.level === "warn"
+                ? "border-amber-400/40 bg-amber-500/10 text-amber-700 dark:text-amber-300"
+                : "border-emerald-400/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+          )}
+        >
+          <div className="flex items-center justify-between gap-2">
+            <span>Avg/pack {formatTokenCount(Math.round(perPackStatus.avgTokensPerPack))}</span>
+            <span>
+              Advisory {formatTokenCount(perPackStatus.advisoryMaxTokensPerFile)} (
+              {(perPackStatus.utilization * 100).toFixed(0)}%)
+            </span>
+          </div>
+          {(perPackStatus.level === "warn" || perPackStatus.level === "danger") && (
+            <p className="mt-1">{perPackStatus.message}</p>
+          )}
+        </div>
+      )}
 
       {/* 2e: Actionable suggestions when over threshold */}
       {isWarning && suggestions.length > 0 && (

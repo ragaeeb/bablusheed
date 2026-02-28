@@ -4,10 +4,10 @@ import { Minus, Moon, Package2, Square, Sun, X } from "lucide-react";
 // Module-scope: created once, not on every render
 const appWindow = getCurrentWindow();
 
-interface TitleBarProps {
+type TitleBarProps = {
   theme: "dark" | "light";
   onToggleTheme: () => void;
-}
+};
 
 export function TitleBar({ theme, onToggleTheme }: TitleBarProps) {
   return (
@@ -28,7 +28,7 @@ export function TitleBar({ theme, onToggleTheme }: TitleBarProps) {
       {/* App title */}
       <div className="flex items-center gap-1.5 pointer-events-none">
         <Package2 className="h-3.5 w-3.5 text-primary" />
-        <span className="text-xs font-semibold tracking-tight text-foreground">CodePacker</span>
+        <span className="text-xs font-semibold tracking-tight text-foreground">Bablusheed</span>
       </div>
 
       {/* Controls */}
@@ -47,7 +47,11 @@ export function TitleBar({ theme, onToggleTheme }: TitleBarProps) {
         {/* Window controls */}
         <button
           type="button"
-          onClick={() => appWindow.minimize()}
+          onClick={() => {
+            appWindow.minimize().catch((err) => {
+              console.error("minimize failed:", err);
+            });
+          }}
           className="h-6 w-6 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
           title="Minimize"
         >
@@ -55,7 +59,11 @@ export function TitleBar({ theme, onToggleTheme }: TitleBarProps) {
         </button>
         <button
           type="button"
-          onClick={() => appWindow.toggleMaximize()}
+          onClick={() => {
+            appWindow.toggleMaximize().catch((err) => {
+              console.error("toggleMaximize failed:", err);
+            });
+          }}
           className="h-6 w-6 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
           title="Maximize"
         >
@@ -63,7 +71,11 @@ export function TitleBar({ theme, onToggleTheme }: TitleBarProps) {
         </button>
         <button
           type="button"
-          onClick={() => appWindow.close()}
+          onClick={() => {
+            appWindow.close().catch((err) => {
+              console.error("close failed:", err);
+            });
+          }}
           className="h-6 w-6 flex items-center justify-center rounded text-muted-foreground hover:text-white hover:bg-red-500 transition-colors"
           title="Close"
         >
