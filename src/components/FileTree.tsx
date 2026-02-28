@@ -1,8 +1,9 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { ChevronDown, ChevronRight, File, Folder, FolderOpen, Search } from "lucide-react";
-import { useCallback, useRef } from "react";
+import { useRef } from "react";
 import { TokenBadge } from "@/components/TokenBadge";
 import type { QuickFilter } from "@/hooks/useFileTree";
+import { useRenderDiagnostics } from "@/lib/render-diagnostics";
 import { cn } from "@/lib/utils";
 import type { FlatTreeItem } from "@/types";
 
@@ -20,6 +21,10 @@ interface FileTreeProps {
   onFilePreview: (path: string) => void;
   totalSelected: number;
   totalFiles: number;
+  splitPartCountByPath?: Map<string, number>;
+  debugLogging?: boolean;
+  onDebugLog?: (line: string) => void;
+  onRenderSample?: (component: string, timestampMs: number) => void;
 }
 
 function FileIcon({
@@ -77,6 +82,7 @@ function TreeRow({
   onToggleCheck,
   onToggleExpand,
   onFilePreview,
+  splitPartCountByPath,
 }: {
   item: FlatTreeItem;
   tokenMap: Map<string, number>;
@@ -85,11 +91,13 @@ function TreeRow({
   onToggleCheck: (id: string) => void;
   onToggleExpand: (id: string) => void;
   onFilePreview: (path: string) => void;
+  splitPartCountByPath?: Map<string, number>;
 }) {
   const { node, depth, hasChildren } = item;
   const tokens = tokenMap.get(node.path) ?? node.tokenCount;
   const isChecked = node.checkState === "checked";
   const isIndeterminate = node.checkState === "indeterminate";
+  const splitPartCount = splitPartCountByPath?.get(node.path) ?? 1;
 
   return (
     <div
@@ -185,6 +193,14 @@ function TreeRow({
           className="shrink-0 opacity-50 group-hover:opacity-80 transition-opacity"
         />
       )}
+      {!node.isDir && isChecked && splitPartCount > 1 && (
+        <span
+          className="shrink-0 text-[9px] font-semibold px-1 py-0.5 rounded border border-amber-400/40 bg-amber-500/10 text-amber-700 dark:text-amber-300"
+          title={`Will be split into ${splitPartCount} parts when packing`}
+        >
+          {splitPartCount} parts
+        </span>
+      )}
     </div>
   );
 }
@@ -211,7 +227,20 @@ export function FileTree({
   onFilePreview,
   totalSelected,
   totalFiles,
+  splitPartCountByPath,
+  debugLogging = false,
+  onDebugLog,
+  onRenderSample,
 }: FileTreeProps) {
+  useRenderDiagnostics({
+    component: "FileTree",
+    enabled: debugLogging,
+    onLog: onDebugLog,
+    onRenderSample,
+    threshold: 120,
+    windowMs: 3000,
+  });
+
   const containerRef = useRef<HTMLDivElement>(null);
 
   const rowVirtualizer = useVirtualizer({
@@ -222,28 +251,30 @@ export function FileTree({
   });
 
   // 3r: keyboard Enter handling
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLElement>, item: FlatTreeItem) => {
-      if (e.key === " ") {
-        e.preventDefault();
-        onToggleCheck(item.node.id);
-      } else if (e.key === "ArrowRight" && item.hasChildren && !item.node.isExpanded) {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLElement>, item: FlatTreeItem) => {
+    if (e.key === " ") {
+      e.preventDefault();
+      onToggleCheck(item.node.id);
+    } else if (e.key === "ArrowRight" && item.hasChildren && !item.node.isExpanded) {
+      onToggleExpand(item.node.id);
+    } else if (e.key === "ArrowLeft" && item.node.isExpanded) {
+      onToggleExpand(item.node.id);
+    } else if (e.key === "Enter") {
+      if (item.hasChildren) {
         onToggleExpand(item.node.id);
-      } else if (e.key === "ArrowLeft" && item.node.isExpanded) {
-        onToggleExpand(item.node.id);
-      } else if (e.key === "Enter") {
-        if (item.hasChildren) {
-          onToggleExpand(item.node.id);
-        } else {
-          // Enter on a file opens the preview only; use Space to toggle selection
-          onFilePreview(item.node.path);
-        }
+      } else {
+        // Enter on a file opens the preview only; use Space to toggle selection
+        onFilePreview(item.node.path);
       }
-    },
-    [onToggleCheck, onToggleExpand, onFilePreview]
-  );
+    }
+  };
 
-  const maxFileTokens = Math.max(...Array.from(tokenMap.values()), 1);
+  let maxFileTokens = 1;
+  for (const value of tokenMap.values()) {
+    if (value > maxFileTokens) {
+      maxFileTokens = value;
+    }
+  }
 
   // 3q: pass visibleFilePaths when search is active
   const handleSelectAll = (selected: boolean) => {
@@ -350,6 +381,7 @@ export function FileTree({
                     onToggleCheck={onToggleCheck}
                     onToggleExpand={onToggleExpand}
                     onFilePreview={onFilePreview}
+                    splitPartCountByPath={splitPartCountByPath}
                   />
                 </div>
               );

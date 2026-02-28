@@ -1,6 +1,7 @@
+import { invoke } from "@tauri-apps/api/core";
+import { dirname, join } from "@tauri-apps/api/path";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
-import { save } from "@tauri-apps/plugin-dialog";
-import { writeTextFile } from "@tauri-apps/plugin-fs";
+import { open, save } from "@tauri-apps/plugin-dialog";
 import {
   Check,
   ChevronDown,
@@ -13,6 +14,8 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { buildPackFileTokenMap } from "@/lib/output-preview";
+import { useRenderDiagnostics } from "@/lib/render-diagnostics";
 import { formatTokenCount } from "@/lib/utils";
 import type { PackResponse } from "@/types";
 
@@ -20,8 +23,21 @@ interface OutputPreviewProps {
   packResult: PackResponse;
   /** Optional real per-file token counts from the tokenizer; used to show accurate per-file estimates */
   tokenMap?: Map<string, number>;
+  debugLogging?: boolean;
+  onDebugLog?: (line: string) => void;
+  onRenderSample?: (component: string, timestampMs: number) => void;
   onClose: () => void;
 }
+
+const DEFAULT_PROMPT = `You are reading a multi-file project pack.
+
+Instructions:
+- Each embedded file starts with a path marker like "// path/to/file.ext".
+- Use those markers to identify file boundaries and references.
+- Read packs in order (Pack 1, then Pack 2, ...).
+- If a file appears with ".part-N-of-M", treat parts as one continuous file in part order.
+- Cite exact file paths when referencing code in your answer.
+`;
 
 function PackManifest({
   filePaths,
@@ -93,11 +109,13 @@ function PackContent({
   const handleSave = async () => {
     try {
       const path = await save({
-        defaultPath: `codepacker_pack_${packIndex + 1}_of_${totalPacks}.txt`,
+        defaultPath: `bablusheed_pack_${packIndex + 1}_of_${totalPacks}.txt`,
         filters: [{ name: "Text Files", extensions: ["txt"] }],
       });
       if (path) {
-        await writeTextFile(path, content);
+        const exportDir = await dirname(path);
+        await invoke("authorize_export_directory", { path: exportDir });
+        await invoke("write_file_content", { path, content });
         setSaved(true);
         setTimeout(() => setSaved(false), 2000);
       }
@@ -188,49 +206,44 @@ function PackContent({
   );
 }
 
-export function OutputPreview({ packResult, tokenMap, onClose }: OutputPreviewProps) {
-  const [prompt, setPrompt] = useState("");
+export function OutputPreview({
+  packResult,
+  tokenMap,
+  debugLogging = false,
+  onDebugLog,
+  onRenderSample,
+  onClose,
+}: OutputPreviewProps) {
+  useRenderDiagnostics({
+    component: "OutputPreview",
+    enabled: debugLogging,
+    onLog: onDebugLog,
+    onRenderSample,
+    threshold: 80,
+    windowMs: 3000,
+  });
+
+  const [prompt, setPrompt] = useState(DEFAULT_PROMPT);
   const [showHowTo, setShowHowTo] = useState(false);
   const [exportingAll, setExportingAll] = useState(false);
 
-  // Build a per-file token map: prefer real counts from the tokenizer (tokenMap prop),
-  // fall back to a proportional estimate weighted by the number of files in the pack.
-  const fileTokenMap = new Map<string, number>();
-  for (const pack of packResult.packs) {
-    // Compute total real tokens for files in this pack that have known counts
-    const knownEntries: Array<{ fp: string; tokens: number }> = [];
-    const unknownPaths: string[] = [];
-    for (const fp of pack.filePaths) {
-      const real = tokenMap?.get(fp);
-      if (real !== undefined) {
-        knownEntries.push({ fp, tokens: real });
-        fileTokenMap.set(fp, real);
-      } else {
-        unknownPaths.push(fp);
-      }
-    }
-    // Distribute remaining tokens proportionally among files without real counts
-    if (unknownPaths.length > 0) {
-      const knownTotal = knownEntries.reduce((s, e) => s + e.tokens, 0);
-      const remaining = Math.max(pack.estimatedTokens - knownTotal, 0);
-      const perUnknown = Math.round(remaining / unknownPaths.length);
-      for (const fp of unknownPaths) {
-        fileTokenMap.set(fp, perUnknown);
-      }
-    }
-  }
+  const fileTokenMap = buildPackFileTokenMap(packResult.packs, tokenMap);
 
   const handleExportAll = async () => {
     setExportingAll(true);
     try {
+      const folder = await open({
+        directory: true,
+        multiple: false,
+        title: "Select folder for exported packs",
+      });
+      if (!folder || typeof folder !== "string") return;
+      await invoke("authorize_export_directory", { path: folder });
+
       for (const pack of packResult.packs) {
-        const path = await save({
-          defaultPath: `codepacker_pack_${pack.index + 1}_of_${packResult.packs.length}.txt`,
-          filters: [{ name: "Text Files", extensions: ["txt"] }],
-        });
-        if (path) {
-          await writeTextFile(path, pack.content);
-        }
+        const filename = `bablusheed_pack_${pack.index + 1}_of_${packResult.packs.length}.txt`;
+        const path = await join(folder, filename);
+        await invoke("write_file_content", { path, content: pack.content });
       }
     } catch (err) {
       console.error("Export all failed:", err);

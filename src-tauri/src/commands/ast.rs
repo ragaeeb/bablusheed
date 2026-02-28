@@ -21,10 +21,10 @@ fn get_extension(path: &str) -> &str {
 }
 
 /// Extract top-level symbol names from a parsed AST
-fn extract_symbols(source: &[u8], tree: &tree_sitter::Tree, lang: &str) -> Vec<String> {
+fn extract_symbols(source: &[u8], tree: &tree_sitter::Tree) -> Vec<String> {
     let root = tree.root_node();
     let mut symbols = Vec::new();
-    extract_symbols_from_node(root, source, lang, 0, &mut symbols);
+    extract_symbols_from_node(root, source, 0, &mut symbols);
     symbols
 }
 
@@ -35,7 +35,6 @@ fn node_text<'a>(node: Node, source: &'a [u8]) -> &'a str {
 fn extract_symbols_from_node(
     node: Node,
     source: &[u8],
-    lang: &str,
     depth: usize,
     symbols: &mut Vec<String>,
 ) {
@@ -45,7 +44,7 @@ fn extract_symbols_from_node(
 
     match node.kind() {
         // JavaScript/TypeScript
-        "function_declaration" | "function" => {
+        "function" => {
             if let Some(name_node) = node.child_by_field_name("name") {
                 symbols.push(node_text(name_node, source).to_string());
             }
@@ -69,7 +68,7 @@ fn extract_symbols_from_node(
         "export_statement" => {
             let mut cursor = node.walk();
             for child in node.children(&mut cursor) {
-                extract_symbols_from_node(child, source, lang, depth + 1, symbols);
+                extract_symbols_from_node(child, source, depth + 1, symbols);
             }
         }
         // Python
@@ -90,7 +89,7 @@ fn extract_symbols_from_node(
             }
         }
         // Go
-        "method_declaration" | "type_declaration" => {
+        "function_declaration" | "method_declaration" | "type_declaration" => {
             if let Some(name_node) = node.child_by_field_name("name") {
                 symbols.push(node_text(name_node, source).to_string());
             }
@@ -102,7 +101,7 @@ fn extract_symbols_from_node(
     if matches!(node.kind(), "program" | "source_file" | "translation_unit") {
         let mut cursor = node.walk();
         for child in node.children(&mut cursor) {
-            extract_symbols_from_node(child, source, lang, depth, symbols);
+            extract_symbols_from_node(child, source, depth, symbols);
         }
     }
 }
@@ -118,6 +117,84 @@ fn collect_references(node: Node, source: &[u8], refs: &mut HashSet<String>) {
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
         collect_references(child, source, refs);
+    }
+}
+
+fn collect_symbol_references(source: &[u8], tree: &tree_sitter::Tree) -> HashMap<String, HashSet<String>> {
+    let mut map: HashMap<String, HashSet<String>> = HashMap::new();
+    collect_symbol_references_from_node(tree.root_node(), source, 0, &mut map);
+    map
+}
+
+fn insert_symbol_references(
+    symbol_refs: &mut HashMap<String, HashSet<String>>,
+    source: &[u8],
+    name: String,
+    scope_node: Node,
+) {
+    let mut refs = HashSet::new();
+    collect_references(scope_node, source, &mut refs);
+    refs.remove(&name);
+    symbol_refs
+        .entry(name)
+        .or_default()
+        .extend(refs.into_iter());
+}
+
+fn collect_symbol_references_from_node(
+    node: Node,
+    source: &[u8],
+    depth: usize,
+    symbol_refs: &mut HashMap<String, HashSet<String>>,
+) {
+    if depth > 2 {
+        return;
+    }
+
+    match node.kind() {
+        "function_declaration"
+        | "function"
+        | "class_declaration"
+        | "class"
+        | "function_definition"
+        | "class_definition"
+        | "function_item"
+        | "impl_item"
+        | "struct_item"
+        | "enum_item"
+        | "trait_item"
+        | "method_declaration"
+        | "type_declaration" => {
+            if let Some(name_node) = node.child_by_field_name("name") {
+                let name = node_text(name_node, source).to_string();
+                insert_symbol_references(symbol_refs, source, name, node);
+            }
+        }
+        "lexical_declaration" | "variable_declaration" => {
+            let mut cursor = node.walk();
+            for child in node.children(&mut cursor) {
+                if child.kind() == "variable_declarator" {
+                    if let Some(name_node) = child.child_by_field_name("name") {
+                        let name = node_text(name_node, source).to_string();
+                        insert_symbol_references(symbol_refs, source, name, child);
+                    }
+                }
+            }
+        }
+        "export_statement" => {
+            let mut cursor = node.walk();
+            for child in node.children(&mut cursor) {
+                collect_symbol_references_from_node(child, source, depth + 1, symbol_refs);
+            }
+        }
+        _ => {}
+    }
+
+    if matches!(node.kind(), "program" | "source_file" | "translation_unit") {
+        let mut cursor = node.walk();
+        for child in node.children(&mut cursor) {
+            collect_symbol_references_from_node(child, source, depth, symbol_refs);
+        }
     }
 }
 
@@ -149,25 +226,16 @@ pub async fn analyze_reachability(
             None => continue,
         };
 
-        let lang_str = match ext {
-            "ts" | "tsx" => "typescript",
-            "js" | "jsx" => "javascript",
-            "py" => "python",
-            "rs" => "rust",
-            "go" => "go",
-            _ => "unknown",
-        };
-
-        let symbols = extract_symbols(source, &tree, lang_str);
+        let symbols = extract_symbols(source, &tree);
+        let refs_by_symbol = collect_symbol_references(source, &tree);
 
         for sym in &symbols {
             symbol_map.insert(sym.clone(), file.path.clone());
-
-            // Collect references within this symbol's scope
-            // For simplicity, collect all refs in the whole file and associate with each symbol
-            let mut refs = HashSet::new();
-            collect_references(tree.root_node(), source, &mut refs);
-            file_refs.insert(sym.clone(), refs);
+            if let Some(refs) = refs_by_symbol.get(sym) {
+                file_refs.insert(sym.clone(), refs.clone());
+            } else {
+                file_refs.insert(sym.clone(), HashSet::new());
+            }
         }
 
         file_symbols.insert(file.path.clone(), symbols);

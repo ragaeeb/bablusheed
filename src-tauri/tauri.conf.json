@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "CodePacker",
+  "productName": "Bablusheed",
   "version": "0.1.0",
-  "identifier": "com.codepacker.app",
+  "identifier": "com.bablusheed.app",
   "build": {
     "beforeDevCommand": "bun run vite:dev",
     "devUrl": "http://localhost:1420",
@@ -12,12 +12,12 @@
   "app": {
     "windows": [
       {
-        "title": "CodePacker",
+        "title": "Bablusheed",
         "width": 1280,
         "height": 800,
         "minWidth": 960,
         "minHeight": 640,
-        "decorations": false,
+        "decorations": true,
         "transparent": false
       }
     ],

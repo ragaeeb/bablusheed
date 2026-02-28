@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useState } from "react";
 import type { CheckState, FileNode, FileTreeNode, FlatTreeItem } from "@/types";
 
 function buildTreeNodes(nodes: FileNode[], depth: number): FileTreeNode[] {
@@ -107,7 +107,6 @@ function selectAllInTree(
   const state: "checked" | "unchecked" = selected ? "checked" : "unchecked";
   return nodes.map((node) => {
     if (filteredPaths) {
-      // Only toggle files whose paths are in the filtered set
       if (!node.isDir && filteredPaths.has(node.path)) {
         return {
           ...node,
@@ -124,7 +123,6 @@ function selectAllInTree(
       }
       return node;
     }
-    // No filter: select all
     return {
       ...node,
       checkState: state,
@@ -133,7 +131,6 @@ function selectAllInTree(
   });
 }
 
-/** Quick-select filter types */
 export type QuickFilter = "source" | "tests" | "config" | "docs" | "clear";
 
 const SOURCE_EXTENSIONS = new Set([
@@ -230,7 +227,6 @@ function quickSelectInTree(nodes: FileTreeNode[], filter: QuickFilter): FileTree
       shouldSelect = isDocFile(node);
     }
 
-    // Additive: only select, don't deselect already-selected files
     if (shouldSelect) {
       return { ...node, checkState: "checked" };
     }
@@ -238,17 +234,34 @@ function quickSelectInTree(nodes: FileTreeNode[], filter: QuickFilter): FileTree
   });
 }
 
+function filterNodesByQuery(nodes: FileTreeNode[], query: string): FileTreeNode[] {
+  const result: FileTreeNode[] = [];
+  for (const node of nodes) {
+    if (
+      node.name.toLowerCase().includes(query) ||
+      node.relativePath.toLowerCase().includes(query)
+    ) {
+      result.push({ ...node, isExpanded: true });
+    } else if (node.children) {
+      const filteredChildren = filterNodesByQuery(node.children, query);
+      if (filteredChildren.length > 0) {
+        result.push({ ...node, children: filteredChildren, isExpanded: true });
+      }
+    }
+  }
+  return result;
+}
+
 export function useFileTree() {
   const [rootNodes, setRootNodes] = useState<FileTreeNode[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [highlightedPath, setHighlightedPath] = useState<string | null>(null);
 
-  // 3f: removed tokenMap parameter — tokens are set via updateTokens
-  const loadTree = useCallback((nodes: FileNode[]) => {
+  const loadTree = (nodes: FileNode[]) => {
     setRootNodes(buildTreeNodes(nodes, 0));
-  }, []);
+  };
 
-  const toggleCheck = useCallback((nodeId: string) => {
+  const toggleCheck = (nodeId: string) => {
     setRootNodes((prev) => {
       const findNode = (nodes: FileTreeNode[]): FileTreeNode | undefined => {
         for (const n of nodes) {
@@ -264,67 +277,36 @@ export function useFileTree() {
       const newState = node?.checkState === "checked" ? "unchecked" : "checked";
       return updateCheckStateInTree(prev, nodeId, newState);
     });
-  }, []);
+  };
 
-  const toggleExpand = useCallback((nodeId: string) => {
+  const toggleExpand = (nodeId: string) => {
     setRootNodes((prev) => toggleExpanded(prev, nodeId));
-  }, []);
+  };
 
-  const updateTokens = useCallback((tokenMap: Map<string, number>) => {
+  const updateTokens = (tokenMap: Map<string, number>) => {
     setRootNodes((prev) => updateTokensInTree(prev, tokenMap));
-  }, []);
+  };
 
-  // 3q: selectAll accepts optional filteredPaths to only toggle visible items
-  const selectAll = useCallback((selected: boolean, filteredPaths?: Set<string>) => {
+  const selectAll = (selected: boolean, filteredPaths?: Set<string>) => {
     setRootNodes((prev) => selectAllInTree(prev, selected, filteredPaths));
-  }, []);
+  };
 
-  const quickSelect = useCallback((filter: QuickFilter) => {
+  const quickSelect = (filter: QuickFilter) => {
     setRootNodes((prev) => quickSelectInTree(prev, filter));
-  }, []);
+  };
 
-  const filteredNodes = useMemo(() => {
-    if (!searchQuery) return rootNodes;
+  const filteredNodes = searchQuery
+    ? filterNodesByQuery(rootNodes, searchQuery.toLowerCase())
+    : rootNodes;
+  const flatItems = flattenTree(filteredNodes);
+  const selectedFiles = getSelectedFiles(rootNodes);
 
-    const query = searchQuery.toLowerCase();
-
-    function filterNodes(nodes: FileTreeNode[]): FileTreeNode[] {
-      const result: FileTreeNode[] = [];
-      for (const node of nodes) {
-        if (
-          node.name.toLowerCase().includes(query) ||
-          node.relativePath.toLowerCase().includes(query)
-        ) {
-          result.push({ ...node, isExpanded: true });
-        } else if (node.children) {
-          const filteredChildren = filterNodes(node.children);
-          if (filteredChildren.length > 0) {
-            result.push({ ...node, children: filteredChildren, isExpanded: true });
-          }
-        }
-      }
-      return result;
+  const visibleFilePaths = new Set<string>();
+  for (const item of flatItems) {
+    if (!item.node.isDir) {
+      visibleFilePaths.add(item.node.path);
     }
-
-    return filterNodes(rootNodes);
-  }, [rootNodes, searchQuery]);
-
-  const flatItems = useMemo(() => flattenTree(filteredNodes), [filteredNodes]);
-  const selectedFiles = useMemo(() => getSelectedFiles(rootNodes), [rootNodes]);
-
-  // Compute set of visible file paths for filtered selectAll
-  const visibleFilePaths = useMemo(() => {
-    const paths = new Set<string>();
-    function collectPaths(items: FlatTreeItem[]) {
-      for (const item of items) {
-        if (!item.node.isDir) {
-          paths.add(item.node.path);
-        }
-      }
-    }
-    collectPaths(flatItems);
-    return paths;
-  }, [flatItems]);
+  }
 
   return {
     rootNodes,

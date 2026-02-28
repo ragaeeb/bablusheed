@@ -4,10 +4,16 @@ import { Minus, Moon, Package2, Square, Sun, X } from "lucide-react";
 // Module-scope: created once, not on every render
 const appWindow = getCurrentWindow();
 
-interface TitleBarProps {
+const runWindowAction = (actionName: string, action: () => Promise<void>) => {
+  action().catch((err) => {
+    console.error(`${actionName} failed:`, err);
+  });
+};
+
+type TitleBarProps = {
   theme: "dark" | "light";
   onToggleTheme: () => void;
-}
+};
 
 export function TitleBar({ theme, onToggleTheme }: TitleBarProps) {
   return (
@@ -20,15 +26,13 @@ export function TitleBar({ theme, onToggleTheme }: TitleBarProps) {
         const target = e.target as HTMLElement;
         // Don't drag if clicking a button or interactive element
         if (target.closest("button")) return;
-        appWindow.startDragging().catch((err) => {
-          console.error("startDragging failed:", err);
-        });
+        runWindowAction("startDragging", () => appWindow.startDragging());
       }}
     >
       {/* App title */}
       <div className="flex items-center gap-1.5 pointer-events-none">
         <Package2 className="h-3.5 w-3.5 text-primary" />
-        <span className="text-xs font-semibold tracking-tight text-foreground">CodePacker</span>
+        <span className="text-xs font-semibold tracking-tight text-foreground">Bablusheed</span>
       </div>
 
       {/* Controls */}
@@ -36,6 +40,7 @@ export function TitleBar({ theme, onToggleTheme }: TitleBarProps) {
         <button
           type="button"
           onClick={onToggleTheme}
+          aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
           className="h-6 w-6 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
           title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
         >
@@ -47,7 +52,8 @@ export function TitleBar({ theme, onToggleTheme }: TitleBarProps) {
         {/* Window controls */}
         <button
           type="button"
-          onClick={() => appWindow.minimize()}
+          aria-label="Minimize"
+          onClick={() => runWindowAction("minimize", () => appWindow.minimize())}
           className="h-6 w-6 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
           title="Minimize"
         >
@@ -55,15 +61,17 @@ export function TitleBar({ theme, onToggleTheme }: TitleBarProps) {
         </button>
         <button
           type="button"
-          onClick={() => appWindow.toggleMaximize()}
+          aria-label="Toggle maximize"
+          onClick={() => runWindowAction("toggleMaximize", () => appWindow.toggleMaximize())}
           className="h-6 w-6 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-          title="Maximize"
+          title="Toggle maximize"
         >
           <Square className="h-2.5 w-2.5" />
         </button>
         <button
           type="button"
-          onClick={() => appWindow.close()}
+          aria-label="Close"
+          onClick={() => runWindowAction("close", () => appWindow.close())}
           className="h-6 w-6 flex items-center justify-center rounded text-muted-foreground hover:text-white hover:bg-red-500 transition-colors"
           title="Close"
         >

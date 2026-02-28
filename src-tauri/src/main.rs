@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    codepacker_lib::run()
+    bablusheed_lib::run()
 }

@@ -1,80 +1,83 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500&display=swap");
 @import "tailwindcss";
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap");
+
+:root {
+  /* Bright light theme - IDE style */
+  --background: 0 0% 98%;
+  --foreground: 220 13% 13%;
+  --card: 0 0% 100%;
+  --card-foreground: 220 13% 13%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 220 13% 13%;
+  --primary: 221 83% 53%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 220 14% 96%;
+  --secondary-foreground: 220 13% 13%;
+  --muted: 220 14% 96%;
+  --muted-foreground: 220 9% 46%;
+  --accent: 221 83% 96%;
+  --accent-foreground: 221 83% 40%;
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 220 13% 91%;
+  --input: 220 13% 85%;
+  --ring: 221 83% 53%;
+
+  --sidebar-bg: 220 14% 97%;
+  --sidebar-border: 220 13% 90%;
+}
+
+.dark {
+  --background: 220 16% 10%;
+  --foreground: 220 14% 92%;
+  --card: 220 16% 12%;
+  --card-foreground: 220 14% 92%;
+  --popover: 220 16% 12%;
+  --popover-foreground: 220 14% 92%;
+  --primary: 221 83% 60%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 220 14% 16%;
+  --secondary-foreground: 220 14% 92%;
+  --muted: 220 14% 16%;
+  --muted-foreground: 220 9% 55%;
+  --accent: 221 83% 20%;
+  --accent-foreground: 221 83% 75%;
+  --destructive: 0 62% 50%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 220 14% 20%;
+  --input: 220 14% 28%;
+  --ring: 221 83% 60%;
+
+  --sidebar-bg: 220 16% 9%;
+  --sidebar-border: 220 14% 18%;
+}
+
+@theme inline {
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+  --font-mono:
+    "JetBrains Mono", "Fira Code", "Cascadia Code", menlo, monaco, consolas, "Courier New",
+    monospace;
+}
 
 @layer base {
-  :root {
-    /* Bright light theme - IDE style */
-    --background: 0 0% 98%;
-    --foreground: 220 13% 13%;
-    --card: 0 0% 100%;
-    --card-foreground: 220 13% 13%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 220 13% 13%;
-    --primary: 221 83% 53%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 220 14% 96%;
-    --secondary-foreground: 220 13% 13%;
-    --muted: 220 14% 96%;
-    --muted-foreground: 220 9% 46%;
-    --accent: 221 83% 96%;
-    --accent-foreground: 221 83% 40%;
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 0 0% 100%;
-    --border: 220 13% 91%;
-    --input: 220 13% 91%;
-    --ring: 221 83% 53%;
-
-    /* Sidebar specific */
-    --sidebar-bg: 220 14% 97%;
-    --sidebar-border: 220 13% 90%;
-
-    /* Color tokens for Tailwind v4 */
-    --color-background: hsl(var(--background));
-    --color-foreground: hsl(var(--foreground));
-    --color-card: hsl(var(--card));
-    --color-card-foreground: hsl(var(--card-foreground));
-    --color-popover: hsl(var(--popover));
-    --color-popover-foreground: hsl(var(--popover-foreground));
-    --color-primary: hsl(var(--primary));
-    --color-primary-foreground: hsl(var(--primary-foreground));
-    --color-secondary: hsl(var(--secondary));
-    --color-secondary-foreground: hsl(var(--secondary-foreground));
-    --color-muted: hsl(var(--muted));
-    --color-muted-foreground: hsl(var(--muted-foreground));
-    --color-accent: hsl(var(--accent));
-    --color-accent-foreground: hsl(var(--accent-foreground));
-    --color-destructive: hsl(var(--destructive));
-    --color-destructive-foreground: hsl(var(--destructive-foreground));
-    --color-border: hsl(var(--border));
-    --color-input: hsl(var(--input));
-    --color-ring: hsl(var(--ring));
-  }
-
-  .dark {
-    --background: 220 16% 10%;
-    --foreground: 220 14% 92%;
-    --card: 220 16% 12%;
-    --card-foreground: 220 14% 92%;
-    --popover: 220 16% 12%;
-    --popover-foreground: 220 14% 92%;
-    --primary: 221 83% 60%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 220 14% 16%;
-    --secondary-foreground: 220 14% 92%;
-    --muted: 220 14% 16%;
-    --muted-foreground: 220 9% 55%;
-    --accent: 221 83% 20%;
-    --accent-foreground: 221 83% 75%;
-    --destructive: 0 62% 50%;
-    --destructive-foreground: 0 0% 100%;
-    --border: 220 14% 20%;
-    --input: 220 14% 20%;
-    --ring: 221 83% 60%;
-
-    --sidebar-bg: 220 16% 9%;
-    --sidebar-border: 220 14% 18%;
-  }
-
   * {
     box-sizing: border-box;
   }
@@ -102,7 +105,10 @@
   textarea,
   input,
   .font-mono {
-    font-family: "JetBrains Mono", "Fira Code", "Cascadia Code", "Consolas", monospace;
+    font-family:
+      "JetBrains Mono", "Fira Code", "Cascadia Code", menlo, monaco, consolas, "Courier New",
+      monospace;
+    font-weight: 400;
     -webkit-user-select: text;
     user-select: text;
   }
@@ -112,6 +118,16 @@
     -webkit-user-select: text;
     user-select: text;
   }
+
+  button:not(:disabled) {
+    cursor: pointer;
+  }
+}
+
+/* Keep select dropdown fully opaque and separated from underlying layout */
+[data-slot="select-content"] {
+  background-color: hsl(var(--popover));
+  opacity: 1;
 }
 
 /* Scrollbar styling - minimal and clean */
@@ -133,20 +149,13 @@
   background: hsl(var(--muted-foreground) / 0.4);
 }
 
-/* IDE-style focus rings */
-*:focus-visible {
-  outline: 2px solid hsl(var(--ring));
-  outline-offset: 1px;
-}
-
-/* Smooth transitions */
-* {
+/* Keep transitions scoped to interactive controls to avoid interfering with popup portals */
+button,
+[role="button"],
+input,
+select,
+textarea {
   transition-property: background-color, border-color, color, opacity;
   transition-duration: 100ms;
   transition-timing-function: ease;
-}
-
-/* Override for transforms/layout */
-.no-transition {
-  transition: none;
 }

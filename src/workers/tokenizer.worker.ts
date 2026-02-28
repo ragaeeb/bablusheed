@@ -12,13 +12,14 @@ function getEncoder(encoding: TiktokenEncoding) {
 }
 
 self.onmessage = (event: MessageEvent<WorkerMessage>) => {
-  const { type, files, encoding } = event.data;
+  const { type, requestId, files, strategy } = event.data;
 
   if (type === "count") {
-    const enc = getEncoder(encoding);
     const results = files.map(({ path, content }) => {
       try {
-        const tokens = enc.encode(content).length;
+        const encoding: TiktokenEncoding = strategy === "openai" ? "o200k_base" : "cl100k_base";
+        // "approx" is intentionally a fast single-pass estimate, not a model-exact tokenizer.
+        const tokens = getEncoder(encoding).encode(content).length;
         return { path, tokens };
       } catch {
         // Fallback: rough estimate of 4 chars per token
@@ -26,7 +27,7 @@ self.onmessage = (event: MessageEvent<WorkerMessage>) => {
       }
     });
 
-    const result: WorkerResult = { type: "result", results };
+    const result: WorkerResult = { type: "result", requestId, results };
     self.postMessage(result);
   }
 };

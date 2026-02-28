@@ -91,6 +91,94 @@ function findCommentStart(line: string): number {
   return -1;
 }
 
+function findDashCommentStart(line: string): number {
+  let inSingle = false;
+  let inDouble = false;
+
+  for (let i = 0; i < line.length - 1; i++) {
+    const c = line[i];
+    const next = line[i + 1];
+    const isEscaped = countPrecedingBackslashes(line, i) % 2 === 1;
+
+    if (c === "'" && !inDouble && !isEscaped) {
+      // SQL-style escaped single quote: '' inside string
+      if (inSingle && next === "'") {
+        i += 1;
+        continue;
+      }
+      inSingle = !inSingle;
+      continue;
+    }
+
+    if (c === '"' && !inSingle && !isEscaped) {
+      inDouble = !inDouble;
+      continue;
+    }
+
+    if (!inSingle && !inDouble && c === "-" && next === "-") {
+      return i;
+    }
+  }
+
+  return -1;
+}
+
+function stripCStyleComments(content: string): string {
+  let out = "";
+  let inSingle = false;
+  let inDouble = false;
+  let inTemplate = false;
+  let inBlockComment = false;
+  let i = 0;
+
+  while (i < content.length) {
+    const c = content[i];
+    const next = i + 1 < content.length ? content[i + 1] : "";
+    const isEscaped = countPrecedingBackslashes(content, i) % 2 === 1;
+
+    if (inBlockComment) {
+      if (c === "*" && next === "/") {
+        inBlockComment = false;
+        i += 2;
+        continue;
+      }
+      if (c === "\n") {
+        out += "\n";
+      }
+      i += 1;
+      continue;
+    }
+
+    if (!inSingle && !inDouble && !inTemplate && c === "/" && next === "*") {
+      inBlockComment = true;
+      i += 2;
+      continue;
+    }
+
+    if (!inSingle && !inDouble && !inTemplate && c === "/" && next === "/") {
+      i += 2;
+      while (i < content.length && content[i] !== "\n") {
+        i += 1;
+      }
+      continue;
+    }
+
+    out += c;
+
+    if (c === "'" && !inDouble && !inTemplate && !isEscaped) {
+      inSingle = !inSingle;
+    } else if (c === '"' && !inSingle && !inTemplate && !isEscaped) {
+      inDouble = !inDouble;
+    } else if (c === "`" && !inSingle && !inDouble && !isEscaped) {
+      inTemplate = !inTemplate;
+    }
+
+    i += 1;
+  }
+
+  return out;
+}
+
 export function stripComments(content: string, extension: string): string {
   const ext = extension.toLowerCase();
 
@@ -102,11 +190,7 @@ export function stripComments(content: string, extension: string): string {
   const dashCommentLanguages = ["sql", "lua"];
 
   if (cStyleLanguages.includes(ext)) {
-    // Remove multi-line comments /* ... */
-    let result = content.replace(/\/\*[\s\S]*?\*\//g, "");
-    // Remove single-line comments // ...
-    result = result.replace(/\/\/[^\n]*/g, "");
-    return result;
+    return stripCStyleComments(content);
   }
 
   if (hashCommentLanguages.includes(ext)) {
@@ -140,19 +224,38 @@ export function stripComments(content: string, extension: string): string {
   }
 
   if (dashCommentLanguages.includes(ext)) {
-    return content.replace(/--[^\n]*/g, "");
+    return content
+      .split("\n")
+      .map((line) => {
+        const commentStart = findDashCommentStart(line);
+        return commentStart === -1 ? line : line.slice(0, commentStart).trimEnd();
+      })
+      .join("\n");
   }
 
   return content;
 }
 
-export function reduceWhitespace(content: string): string {
+const WHITESPACE_SENSITIVE_EXTENSIONS = new Set(["py", "yaml", "yml", "mk"]);
+const WHITESPACE_SENSITIVE_FILENAMES = new Set(["makefile", "gnumakefile"]);
+
+export function reduceWhitespace(content: string, extension?: string, filePath?: string): string {
   // Collapse multiple blank lines into one
   let result = content.replace(/\n{3,}/g, "\n\n");
   // Trim trailing whitespace from each line
+  const ext = extension?.toLowerCase();
+  const fileName = filePath?.replace(/\\/g, "/").split("/").pop()?.toLowerCase();
+  const preserveIndentation =
+    (ext ? WHITESPACE_SENSITIVE_EXTENSIONS.has(ext) : false) ||
+    (fileName ? WHITESPACE_SENSITIVE_FILENAMES.has(fileName) : false);
   result = result
     .split("\n")
-    .map((line) => line.trimEnd())
+    .map((line) => {
+      const trimmed = line.trimEnd();
+      if (preserveIndentation) return trimmed;
+      // Fully left-align in whitespace-insensitive formats to maximize token savings.
+      return trimmed.trimStart();
+    })
     .join("\n");
   // Trim leading/trailing whitespace from the whole content
   return result.trim();
