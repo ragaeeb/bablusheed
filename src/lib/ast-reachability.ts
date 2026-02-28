@@ -92,12 +92,18 @@ export function stripUnreachableSymbols(content: string, symbols: string[], ext:
       );
     } else if (ext === "py") {
       result = result.replace(
-        new RegExp(`def\\s+${escaped}\\s*\\([\\s\\S]*?(?=\\ndef\\s|\\nclass\\s|$)`, "g"),
-        ""
+        new RegExp(
+          `(^|\\n)(?![ \\t])def\\s+${escaped}\\s*\\([\\s\\S]*?(?=\\n(?![ \\t])(?:def\\s|class\\s)|$)`,
+          "g"
+        ),
+        "$1"
       );
       result = result.replace(
-        new RegExp(`class\\s+${escaped}[\\s\\S]*?(?=\\ndef\\s|\\nclass\\s|$)`, "g"),
-        ""
+        new RegExp(
+          `(^|\\n)(?![ \\t])class\\s+${escaped}[\\s\\S]*?(?=\\n(?![ \\t])(?:def\\s|class\\s)|$)`,
+          "g"
+        ),
+        "$1"
       );
     } else if (ext === "rs") {
       result = result.replace(
@@ -108,10 +114,9 @@ export function stripUnreachableSymbols(content: string, symbols: string[], ext:
         "$1"
       );
     } else if (ext === "go") {
-      // NOTE: Only single-line function bodies are stripped; multiline Go functions are preserved.
       result = result.replace(
         new RegExp(
-          `(^|\\n)(?![ \\t])func\\s+(?:\\([^)]+\\)\\s+)?${escaped}\\s*\\([^)]*\\)\\s*\\{[^\\n]*\\}\\s*(?=\\n|$)`,
+          `(^|\\n)(?![ \\t])func\\s+(?:\\([^)]+\\)\\s+)?${escaped}\\s*\\([^)]*\\)[\\s\\S]*?(?=\\n(?![ \\t])(?:func\\s|type\\s|var\\s|const\\s|import\\s|package\\s)|$)`,
           "g"
         ),
         "$1"

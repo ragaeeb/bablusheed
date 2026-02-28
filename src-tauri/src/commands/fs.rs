@@ -226,25 +226,12 @@ pub async fn walk_directory(
         ));
     }
 
-    // Write custom ignore patterns to a temp file if provided
-    let temp_ignore_file = if !custom_ignore_patterns.is_empty() {
-        let tmp = std::env::temp_dir().join(".bablusheed_ignore");
-        if std::fs::write(&tmp, custom_ignore_patterns.join("\n")).is_ok() {
-            Some(tmp)
-        } else {
-            None
-        }
-    } else {
-        None
-    };
-
     let mut nodes = build_tree(root, root, respect_gitignore).map_err(|e| e.to_string())?;
     if let Ok(canonical_root) = canonicalize_existing_path(root) {
         remember_project_root(canonical_root);
     }
 
-    // Apply custom ignore patterns as post-filter if we couldn't add them to walker
-    if let Some(_ignore_file) = temp_ignore_file {
+    if !custom_ignore_patterns.is_empty() {
         let patterns: Vec<glob::Pattern> = custom_ignore_patterns
             .iter()
             .filter_map(|p| glob::Pattern::new(p).ok())
@@ -332,12 +319,12 @@ pub async fn write_file_content(path: String, content: String) -> Result<(), Str
         return Err(format!("Write path is outside allowed roots: {}", path));
     }
 
-    let write_path = file_path.clone();
+    let write_path = canonical_target.clone();
     async_runtime::spawn_blocking(move || -> Result<(), String> {
         if let Some(parent) = write_path.parent() {
             std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
         }
-        std::fs::write(write_path, content).map_err(|e| e.to_string())
+        std::fs::write(&write_path, content).map_err(|e| e.to_string())
     })
     .await
     .map_err(|e| e.to_string())??;

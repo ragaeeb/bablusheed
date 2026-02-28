@@ -40,18 +40,18 @@ import { cn } from "@/lib/utils";
 import type { FileNode, PackOptions as PackOptionsType } from "@/types";
 
 const DEFAULT_PACK_OPTIONS: PackOptionsType = {
-  numPacks: 3,
-  maxTokensPerPackFile: 0,
-  outputFormat: "markdown",
-  stripComments: true,
-  reduceWhitespace: true,
   astDeadCode: false,
-  entryPoint: null,
-  minifyMarkdown: true,
-  stripMarkdownHeadings: false,
-  stripMarkdownBlockquotes: false,
-  respectGitignore: true,
   customIgnorePatterns: "**/*.test.ts\n**/*.spec.*\n**/__mocks__/**",
+  entryPoint: null,
+  maxTokensPerPackFile: 0,
+  minifyMarkdown: true,
+  numPacks: 3,
+  outputFormat: "markdown",
+  reduceWhitespace: true,
+  respectGitignore: true,
+  stripComments: true,
+  stripMarkdownBlockquotes: false,
+  stripMarkdownHeadings: false,
 };
 
 /** Count total non-directory files in any tree whose nodes have isDir and optional children */
@@ -80,7 +80,7 @@ function StepIndicator({ step, currentStep }: { step: WorkflowStep; currentStep:
     <div
       className={cn(
         "flex items-center gap-1 text-[10px] font-medium transition-colors",
-        isActive ? "text-primary" : isCompleted ? "text-foreground/60" : "text-muted-foreground/40"
+        isActive ? "text-primary" : isCompleted ? "text-foreground/60" : "text-muted-foreground/40",
       )}
     >
       <span
@@ -90,7 +90,7 @@ function StepIndicator({ step, currentStep }: { step: WorkflowStep; currentStep:
             ? "bg-primary text-primary-foreground border-primary"
             : isCompleted
               ? "bg-foreground/20 text-foreground/60 border-foreground/20"
-              : "bg-transparent border-muted-foreground/30 text-muted-foreground/40"
+              : "bg-transparent border-muted-foreground/30 text-muted-foreground/40",
         )}
       >
         {step}
@@ -100,17 +100,17 @@ function StepIndicator({ step, currentStep }: { step: WorkflowStep; currentStep:
   );
 }
 
-export default function App() {
-  type DebugLiveMetrics = {
-    appRendersPerMin: number;
-    fileTreeRendersPerMin: number;
-    outputPreviewRendersPerMin: number;
-    astRecomputeCount: number;
-    astCacheHitCount: number;
-    workerQueuedCount: number;
-    workerResultCount: number;
-  };
+type DebugLiveMetrics = {
+  appRendersPerMin: number;
+  fileTreeRendersPerMin: number;
+  outputPreviewRendersPerMin: number;
+  astRecomputeCount: number;
+  astCacheHitCount: number;
+  workerQueuedCount: number;
+  workerResultCount: number;
+};
 
+export default function App() {
   const [theme, setTheme] = useState<"dark" | "light">("light");
   const [projectPath, setProjectPath] = useState<string | null>(null);
   const [projectName, setProjectName] = useState<string>("");
@@ -130,10 +130,10 @@ export default function App() {
   const [debugLogs, setDebugLogs] = useState<string[]>([]);
   const [debugLiveMetrics, setDebugLiveMetrics] = useState<DebugLiveMetrics>({
     appRendersPerMin: 0,
+    astCacheHitCount: 0,
+    astRecomputeCount: 0,
     fileTreeRendersPerMin: 0,
     outputPreviewRendersPerMin: 0,
-    astRecomputeCount: 0,
-    astCacheHitCount: 0,
     workerQueuedCount: 0,
     workerResultCount: 0,
   });
@@ -146,8 +146,8 @@ export default function App() {
     OutputPreview: [],
   });
   const debugMetricCountsRef = useRef({
-    astRecompute: 0,
     astCacheHit: 0,
+    astRecompute: 0,
     workerQueued: 0,
     workerResult: 0,
   });
@@ -193,7 +193,7 @@ export default function App() {
     renderSamplesRef.current[component] = bucket;
   };
   const incrementDebugMetric = (
-    name: "astRecompute" | "astCacheHit" | "workerQueued" | "workerResult"
+    name: "astRecompute" | "astCacheHit" | "workerQueued" | "workerResult",
   ) => {
     if (!debugLogging) return;
     debugMetricCountsRef.current[name] += 1;
@@ -209,13 +209,13 @@ export default function App() {
   });
 
   const tokenCountOptions = {
-    stripComments: packOptions.stripComments,
-    reduceWhitespace: packOptions.reduceWhitespace,
-    minifyMarkdown: packOptions.minifyMarkdown,
-    stripMarkdownHeadings: packOptions.stripMarkdownHeadings,
-    stripMarkdownBlockquotes: packOptions.stripMarkdownBlockquotes,
     astDeadCode: packOptions.astDeadCode,
     entryPoint: packOptions.entryPoint,
+    minifyMarkdown: packOptions.minifyMarkdown,
+    reduceWhitespace: packOptions.reduceWhitespace,
+    stripComments: packOptions.stripComments,
+    stripMarkdownBlockquotes: packOptions.stripMarkdownBlockquotes,
+    stripMarkdownHeadings: packOptions.stripMarkdownHeadings,
   };
 
   const { tokenMap, totalTokens, isCalculating } = useTokenCount(
@@ -225,24 +225,24 @@ export default function App() {
     tokenCountOptions,
     debugLogging,
     appendDebugLog,
-    incrementDebugMetric
+    incrementDebugMetric,
   );
 
   useEffect(() => {
     if (!debugLogging) {
       renderSamplesRef.current = { App: [], FileTree: [], OutputPreview: [] };
       debugMetricCountsRef.current = {
-        astRecompute: 0,
         astCacheHit: 0,
+        astRecompute: 0,
         workerQueued: 0,
         workerResult: 0,
       };
       setDebugLiveMetrics({
         appRendersPerMin: 0,
+        astCacheHitCount: 0,
+        astRecomputeCount: 0,
         fileTreeRendersPerMin: 0,
         outputPreviewRendersPerMin: 0,
-        astRecomputeCount: 0,
-        astCacheHitCount: 0,
         workerQueuedCount: 0,
         workerResultCount: 0,
       });
@@ -261,10 +261,10 @@ export default function App() {
 
       setDebugLiveMetrics({
         appRendersPerMin: appSamples.length,
+        astCacheHitCount: debugMetricCountsRef.current.astCacheHit,
+        astRecomputeCount: debugMetricCountsRef.current.astRecompute,
         fileTreeRendersPerMin: treeSamples.length,
         outputPreviewRendersPerMin: previewSamples.length,
-        astRecomputeCount: debugMetricCountsRef.current.astRecompute,
-        astCacheHitCount: debugMetricCountsRef.current.astCacheHit,
         workerQueuedCount: debugMetricCountsRef.current.workerQueued,
         workerResultCount: debugMetricCountsRef.current.workerResult,
       });
@@ -278,31 +278,31 @@ export default function App() {
     fileContents,
     selectedLlmId,
     llmProfile.contextWindowTokens,
-    tokenMap
+    tokenMap,
   );
 
   const advisoryMaxTokensPerFile = resolveAdvisoryMaxTokensPerFile(
     packOptions.maxTokensPerPackFile,
-    llmProfile.contextWindowTokens
+    llmProfile.contextWindowTokens,
   );
   const selectedPackFiles = selectedFiles
     .filter((f) => !f.isDir)
     .map((f) => ({
-      path: f.relativePath,
       content: fileContents.get(f.path) ?? "",
+      path: f.relativePath,
       tokenCount: tokenMap.get(f.path),
     }));
   const oversizedSelection = findOversizedFiles(selectedPackFiles, advisoryMaxTokensPerFile);
   const advisorySelectionWarning = buildOversizedFilesWarning(
     oversizedSelection,
-    advisoryMaxTokensPerFile
+    advisoryMaxTokensPerFile,
   );
   const splitPartCountByAbsolutePath = (() => {
     const selectedAbsoluteFiles = selectedFiles
       .filter((f) => !f.isDir)
       .map((f) => ({
-        path: f.path,
         content: fileContents.get(f.path) ?? "",
+        path: f.path,
         tokenCount: tokenMap.get(f.path),
       }));
     return forecastSplitPartCounts(selectedAbsoluteFiles, advisoryMaxTokensPerFile);
@@ -388,7 +388,7 @@ export default function App() {
 
   const readProjectFile = useCallback(
     async (path: string): Promise<string> => invoke<string>("read_file_content", { path }),
-    []
+    [],
   );
 
   // 3c: Lazy file content loading — load on demand, cache in fileContents.
@@ -430,7 +430,7 @@ export default function App() {
           } catch {
             updates.set(path, "");
           }
-        })
+        }),
       );
       if (cancelled || updates.size === 0) return;
       setFileContents((prev) => {
@@ -463,9 +463,9 @@ export default function App() {
         .filter(Boolean);
 
       const nodes = await invoke<FileNode[]>("walk_directory", {
+        customIgnorePatterns: customIgnoreList,
         path: folderPath,
         respectGitignore: gitignoreRef.current,
-        customIgnorePatterns: customIgnoreList,
       });
 
       loadTree(nodes);
@@ -536,7 +536,7 @@ export default function App() {
         if (event.payload.paths.length > 0) {
           loadProjectRef.current(event.payload.paths[0]);
         }
-      }
+      },
     ).then((fn) => unlistens.push(fn));
 
     listen("tauri://drag-enter", () => setIsDragging(true)).then((fn) => unlistens.push(fn));
@@ -592,7 +592,7 @@ export default function App() {
     try {
       const path = await save({
         defaultPath: `bablusheed_debug_${new Date().toISOString().replace(/[:.]/g, "-")}.log`,
-        filters: [{ name: "Log Files", extensions: ["log", "txt"] }],
+        filters: [{ extensions: ["log", "txt"], name: "Log Files" }],
       });
       if (!path) return;
       const exportDir = await dirname(path);
@@ -608,8 +608,8 @@ export default function App() {
       ].join("\n");
 
       await invoke("write_file_content", {
-        path,
         content: `${header}${debugLogs.join("\n")}\n`,
+        path,
       });
     } catch (err) {
       console.error("Failed to export debug logs:", err);
@@ -619,7 +619,7 @@ export default function App() {
   // 3n: Cap numPacks slider max at selectedFiles.length
   const maxSensiblePacks = Math.min(
     llmProfile.maxFileAttachments,
-    Math.max(selectedFiles.length, 1)
+    Math.max(selectedFiles.length, 1),
   );
   useEffect(() => {
     if (packOptions.numPacks > maxSensiblePacks) {
@@ -752,7 +752,7 @@ export default function App() {
                       "h-7 w-7 inline-flex items-center justify-center rounded border transition-colors",
                       debugLogging
                         ? "border-primary bg-primary/10 text-primary hover:bg-primary/15"
-                        : "border-border bg-background text-muted-foreground hover:text-foreground hover:bg-muted"
+                        : "border-border bg-background text-muted-foreground hover:text-foreground hover:bg-muted",
                     )}
                     title={debugLogging ? "Disable debug logging" : "Enable debug logging"}
                     aria-label={debugLogging ? "Disable debug logging" : "Enable debug logging"}
@@ -847,7 +847,7 @@ export default function App() {
                         "text-[10px] px-2 py-0.5 rounded border font-medium transition-colors",
                         centerTab === "options"
                           ? "bg-primary text-primary-foreground border-primary"
-                          : "border-border text-muted-foreground hover:text-foreground"
+                          : "border-border text-muted-foreground hover:text-foreground",
                       )}
                     >
                       Options
@@ -859,7 +859,7 @@ export default function App() {
                         "text-[10px] px-2 py-0.5 rounded border font-medium transition-colors",
                         centerTab === "preview"
                           ? "bg-primary text-primary-foreground border-primary"
-                          : "border-border text-muted-foreground hover:text-foreground"
+                          : "border-border text-muted-foreground hover:text-foreground",
                       )}
                     >
                       Preview

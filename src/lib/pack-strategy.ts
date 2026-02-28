@@ -114,7 +114,16 @@ export function splitContentByTokenBudget(content: string, maxTokensPerFile: num
 }
 
 function toPartPath(path: string, partIndex: number, partCount: number): string {
-  return `${path} (part ${partIndex + 1}/${partCount})`;
+  const slashIndex = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\"));
+  const dir = slashIndex >= 0 ? path.slice(0, slashIndex + 1) : "";
+  const fileName = slashIndex >= 0 ? path.slice(slashIndex + 1) : path;
+
+  const dotIndex = fileName.lastIndexOf(".");
+  const suffix = `.part-${partIndex + 1}-of-${partCount}`;
+  if (dotIndex <= 0) {
+    return `${dir}${fileName}${suffix}`;
+  }
+  return `${dir}${fileName.slice(0, dotIndex)}${suffix}${fileName.slice(dotIndex)}`;
 }
 
 export function buildOversizedFilesWarning(

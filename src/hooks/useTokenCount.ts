@@ -209,13 +209,14 @@ export function useTokenCount(
         if (baseContent === undefined || baseContent === null) continue;
 
         let content = baseContent;
+        const ext = file.extension.toLowerCase();
         if (packOptions.stripComments) {
-          content = stripComments(content, file.extension);
+          content = stripComments(content, ext);
         }
         if (packOptions.reduceWhitespace) {
-          content = reduceWhitespace(content, file.extension, file.relativePath);
+          content = reduceWhitespace(content, ext, file.relativePath);
         }
-        if (packOptions.minifyMarkdown && file.extension === "md") {
+        if (packOptions.minifyMarkdown && (ext === "md" || ext === "mdx")) {
           content = minifyMarkdown(
             content,
             packOptions.stripMarkdownHeadings,

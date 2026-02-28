@@ -269,7 +269,12 @@ export function FileTree({
     }
   };
 
-  const maxFileTokens = Math.max(...Array.from(tokenMap.values()), 1);
+  let maxFileTokens = 1;
+  for (const value of tokenMap.values()) {
+    if (value > maxFileTokens) {
+      maxFileTokens = value;
+    }
+  }
 
   // 3q: pass visibleFilePaths when search is active
   const handleSelectAll = (selected: boolean) => {

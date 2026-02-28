@@ -35,7 +35,7 @@ Instructions:
 - Each embedded file starts with a path marker like "// path/to/file.ext".
 - Use those markers to identify file boundaries and references.
 - Read packs in order (Pack 1, then Pack 2, ...).
-- If a file appears as "(part N/M)", treat parts as one continuous file in part order.
+- If a file appears with ".part-N-of-M", treat parts as one continuous file in part order.
 - Cite exact file paths when referencing code in your answer.
 `;
 

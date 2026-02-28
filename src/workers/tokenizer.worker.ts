@@ -17,13 +17,9 @@ self.onmessage = (event: MessageEvent<WorkerMessage>) => {
   if (type === "count") {
     const results = files.map(({ path, content }) => {
       try {
-        const tokens =
-          strategy === "openai"
-            ? getEncoder("o200k_base").encode(content).length
-            : Math.max(
-                getEncoder("cl100k_base").encode(content).length,
-                getEncoder("o200k_base").encode(content).length
-              );
+        const encoding: TiktokenEncoding = strategy === "openai" ? "o200k_base" : "cl100k_base";
+        // "approx" is intentionally a fast single-pass estimate, not a model-exact tokenizer.
+        const tokens = getEncoder(encoding).encode(content).length;
         return { path, tokens };
       } catch {
         // Fallback: rough estimate of 4 chars per token

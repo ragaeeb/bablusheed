@@ -1,5 +1,5 @@
 import { ChevronDown, ChevronRight, Info } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -93,6 +93,7 @@ export function PackOptions({
   const [outputOpen, setOutputOpen] = useState(true);
   const [optimizeOpen, setOptimizeOpen] = useState(true);
   const [ignoreOpen, setIgnoreOpen] = useState(false);
+  const optionsRef = useRef(options);
 
   const hasMarkdownFiles = selectedFiles.some((f) => f.extension === "md");
   const autoAdvisoryMax = deriveAdvisoryMaxTokensPerFile(contextWindowTokens);
@@ -114,12 +115,16 @@ export function PackOptions({
     onChange({ ...options, ...partial });
   };
 
+  useEffect(() => {
+    optionsRef.current = options;
+  }, [options]);
+
   // Revalidate entryPoint when eligible files change.
   useEffect(() => {
     if (options.entryPoint && !eligiblePathSet.has(options.entryPoint)) {
-      onChange({ ...options, entryPoint: null });
+      onChange({ ...optionsRef.current, entryPoint: null });
     }
-  }, [eligiblePathSet, onChange, options]);
+  }, [eligiblePathSet, onChange, options.entryPoint]);
 
   return (
     <div className="space-y-0">

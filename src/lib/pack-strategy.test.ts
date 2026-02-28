@@ -156,7 +156,7 @@ describe("splitOversizedFilesForPacking", () => {
     expect(result.oversizedFiles).toEqual([{ path: "big.ts", tokenCount: 200 }]);
     expect(result.splitFileCount).toBe(1);
     expect(result.generatedPartCount).toBeGreaterThan(1);
-    expect(result.files.some((f) => f.path.startsWith("big.ts (part "))).toBe(true);
+    expect(result.files.some((f) => /^big\.part-\d+-of-\d+\.ts$/.test(f.path))).toBe(true);
     expect(result.files.some((f) => f.path === "small.ts")).toBe(true);
     expect(result.warnings.length).toBe(2);
   });

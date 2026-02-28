@@ -129,18 +129,20 @@ fn extract_quoted_segments(line: &str) -> Vec<String> {
         i += 1;
         let start = i;
 
+        let mut closed = false;
         while i < bytes.len() {
             if bytes[i] == b'\\' {
                 i = (i + 2).min(bytes.len());
                 continue;
             }
             if bytes[i] == quote {
+                closed = true;
                 break;
             }
             i += 1;
         }
 
-        if i <= bytes.len() {
+        if closed {
             out.push(String::from_utf8_lossy(&bytes[start..i]).to_string());
         }
 
@@ -571,4 +573,23 @@ pub async fn pack_files(request: PackRequest) -> Result<PackResponse, String> {
     }
 
     Ok(PackResponse { packs, total_tokens })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::extract_quoted_segments;
+
+    #[test]
+    fn should_extract_closed_quoted_segments() {
+        let line = r#"import foo from "./foo"; const x = require('bar');"#;
+        let parts = extract_quoted_segments(line);
+        assert_eq!(parts, vec!["./foo".to_string(), "bar".to_string()]);
+    }
+
+    #[test]
+    fn should_ignore_unterminated_quoted_segments() {
+        let line = r#"import foo from "./foo"#;
+        let parts = extract_quoted_segments(line);
+        assert!(parts.is_empty());
+    }
 }

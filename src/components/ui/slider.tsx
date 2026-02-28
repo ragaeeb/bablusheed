@@ -2,7 +2,13 @@ import { Slider as SliderPrimitive } from "@base-ui/react/slider";
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
-interface SliderProps {
+type SliderRootProps = React.ComponentPropsWithoutRef<typeof SliderPrimitive.Root>;
+
+interface SliderProps
+  extends Omit<
+    SliderRootProps,
+    "className" | "value" | "defaultValue" | "onValueChange" | "min" | "max" | "step" | "disabled"
+  > {
   className?: string;
   value?: number[];
   defaultValue?: number[];
@@ -12,21 +18,30 @@ interface SliderProps {
   disabled?: boolean;
   onValueChange?: (
     value: number[],
-    details: Parameters<
-      NonNullable<React.ComponentProps<typeof SliderPrimitive.Root>["onValueChange"]>
-    >[1]
+    details: Parameters<NonNullable<SliderRootProps["onValueChange"]>>[1]
   ) => void;
 }
 
 const Slider = React.forwardRef<HTMLDivElement, SliderProps>(
   (
-    { className, value, defaultValue, min = 0, max = 100, step = 1, disabled, onValueChange },
+    {
+      className,
+      value,
+      defaultValue,
+      min = 0,
+      max = 100,
+      step = 1,
+      disabled,
+      onValueChange,
+      ...rootProps
+    },
     ref
   ) => {
     const thumbCount = Math.max(value?.length ?? defaultValue?.length ?? 1, 1);
 
     return (
       <SliderPrimitive.Root
+        {...rootProps}
         ref={ref}
         value={value}
         defaultValue={defaultValue}

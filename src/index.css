@@ -73,7 +73,7 @@
   --color-input: hsl(var(--input));
   --color-ring: hsl(var(--ring));
   --font-mono:
-    "JetBrains Mono", "Fira Code", "Cascadia Code", Menlo, Monaco, "Consolas", "Courier New",
+    "JetBrains Mono", "Fira Code", "Cascadia Code", menlo, monaco, consolas, "Courier New",
     monospace;
 }
 
@@ -106,7 +106,7 @@
   input,
   .font-mono {
     font-family:
-      "JetBrains Mono", "Fira Code", "Cascadia Code", Menlo, Monaco, "Consolas", "Courier New",
+      "JetBrains Mono", "Fira Code", "Cascadia Code", menlo, monaco, consolas, "Courier New",
       monospace;
     font-weight: 400;
     -webkit-user-select: text;

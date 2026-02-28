@@ -7,7 +7,7 @@ export default {
       {
         preset: "conventionalcommits",
         releaseRules: [
-          { type: "docs", scope: "README", release: "patch" },
+          { type: "docs", scope: "readme", release: "patch" },
           { type: "chore", scope: "deps", release: "patch" },
           { type: "chore", scope: "release", release: "patch" },
         ],

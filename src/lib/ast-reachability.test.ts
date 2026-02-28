@@ -185,14 +185,31 @@ func dropPrivate() {}
     expect(output).not.toContain("func dropPrivate");
   });
 
-  it("should not strip multiline go functions when regex pattern does not match", () => {
+  it("should strip multiline go functions by top-level declaration match", () => {
     const input = `func dropPrivate() {
   x := 1
   _ = x
 }
 `;
     const output = run(input, ["dropPrivate"], "go");
-    expect(output).toBe(input);
+    expect(output).not.toContain("func dropPrivate");
+  });
+
+  it("should keep nested python defs while removing only top-level unreachable defs", () => {
+    const input = `def drop_fn():
+    return 1
+
+class Keep:
+    def drop_fn(self):
+        return 2
+
+def keep_fn():
+    return 3
+`;
+    const output = run(input, ["drop_fn"], "py");
+    expect(output).not.toContain("def drop_fn():");
+    expect(output).toContain("def drop_fn(self):");
+    expect(output).toContain("def keep_fn():");
   });
 
   it("should skip stripping for very large files to avoid unsafe regex behavior", () => {

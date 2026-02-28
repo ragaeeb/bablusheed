@@ -1,6 +1,6 @@
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { Check, Copy, Eye, EyeOff, Loader2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { cn, formatTokenCount, minifyMarkdown, reduceWhitespace, stripComments } from "@/lib/utils";
 import type { FileTreeNode, PackOptions } from "@/types";
 
@@ -56,6 +56,12 @@ export function FilePreview({
   const [copyError, setCopyError] = useState(false);
   const [showOptimized, setShowOptimized] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const inFlightLoadsRef = useRef(new Set<string>());
+  const cachedPathsRef = useRef(new Set<string>());
+
+  useEffect(() => {
+    cachedPathsRef.current = new Set(fileContents.keys());
+  }, [fileContents]);
 
   // Load content on demand if not yet cached
   // Depend on file?.path (not the whole fileContents Map) so this re-runs when the file changes,
@@ -63,12 +69,27 @@ export function FilePreview({
   const filePath = file?.path;
   useEffect(() => {
     if (!filePath) return;
-    if (fileContents.has(filePath)) return;
+    if (cachedPathsRef.current.has(filePath)) return;
     if (!onLoadContent) return;
+    if (inFlightLoadsRef.current.has(filePath)) return;
 
+    inFlightLoadsRef.current.add(filePath);
+    let cancelled = false;
     setIsLoading(true);
-    onLoadContent(filePath).finally(() => setIsLoading(false));
-  }, [fileContents, filePath, onLoadContent]);
+    onLoadContent(filePath)
+      .catch((err) => {
+        console.error("Failed to load preview content:", err);
+      })
+      .finally(() => {
+        inFlightLoadsRef.current.delete(filePath);
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [filePath, onLoadContent]);
 
   // Close on Escape
   useEffect(() => {
@@ -94,7 +115,7 @@ export function FilePreview({
   if (packOptions.reduceWhitespace) {
     optimizedContent = reduceWhitespace(optimizedContent, file.extension, file.relativePath);
   }
-  if (packOptions.minifyMarkdown && ext === "md") {
+  if (packOptions.minifyMarkdown && (ext === "md" || ext === "mdx")) {
     optimizedContent = minifyMarkdown(
       optimizedContent,
       packOptions.stripMarkdownHeadings,
@@ -105,7 +126,7 @@ export function FilePreview({
   const hasOptimizations =
     packOptions.stripComments ||
     packOptions.reduceWhitespace ||
-    (packOptions.minifyMarkdown && ext === "md");
+    (packOptions.minifyMarkdown && (ext === "md" || ext === "mdx"));
   const displayContent = showOptimized ? optimizedContent : rawContent;
 
   const handleCopy = async () => {
