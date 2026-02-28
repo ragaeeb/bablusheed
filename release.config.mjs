@@ -1,4 +1,4 @@
-module.exports = {
+export default {
   branches: ["main"],
   tagFormat: "v${version}",
   plugins: [
@@ -9,30 +9,35 @@ module.exports = {
         releaseRules: [
           { type: "docs", scope: "README", release: "patch" },
           { type: "chore", scope: "deps", release: "patch" },
-          { type: "chore", scope: "release", release: "patch" }
-        ]
-      }
+          { type: "chore", scope: "release", release: "patch" },
+        ],
+      },
     ],
     "@semantic-release/release-notes-generator",
     [
       "@semantic-release/changelog",
       {
-        changelogFile: "CHANGELOG.md"
-      }
+        changelogFile: "CHANGELOG.md",
+      },
     ],
     [
       "@semantic-release/exec",
       {
-        prepareCmd: "node scripts/sync-version.mjs ${nextRelease.version}"
-      }
+        prepareCmd: "node scripts/sync-version.mjs ${nextRelease.version}",
+      },
     ],
     [
       "@semantic-release/git",
       {
-        assets: ["CHANGELOG.md", "package.json", "src-tauri/Cargo.toml", "src-tauri/tauri.conf.json"],
-        message: "chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}"
-      }
+        assets: [
+          "CHANGELOG.md",
+          "package.json",
+          "src-tauri/Cargo.toml",
+          "src-tauri/tauri.conf.json",
+        ],
+        message: "chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}",
+      },
     ],
-    "@semantic-release/github"
-  ]
+    "@semantic-release/github",
+  ],
 };

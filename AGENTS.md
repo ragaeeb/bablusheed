@@ -99,7 +99,7 @@ bun run ci
 
 ## Release/Versioning Notes
 
-- semantic-release is configured via `.releaserc.cjs`.
+- semantic-release is configured via `release.config.mjs`.
 - Version sync script updates:
 - `package.json`
 - `src-tauri/Cargo.toml`
