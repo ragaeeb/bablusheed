@@ -331,3 +331,87 @@ pub async fn write_file_content(path: String, content: String) -> Result<(), Str
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::Path;
+
+    // ── path_has_parent_traversal ──
+
+    #[test]
+    fn detects_parent_traversal() {
+        assert!(path_has_parent_traversal(Path::new("../secret")));
+        assert!(path_has_parent_traversal(Path::new("foo/../../etc/passwd")));
+        assert!(path_has_parent_traversal(Path::new("a/b/../c")));
+    }
+
+    #[test]
+    fn allows_normal_paths() {
+        assert!(!path_has_parent_traversal(Path::new("foo/bar/baz")));
+        assert!(!path_has_parent_traversal(Path::new("/absolute/path")));
+        assert!(!path_has_parent_traversal(Path::new("./relative")));
+        assert!(!path_has_parent_traversal(Path::new("file.txt")));
+    }
+
+    // ── is_binary_by_extension ──
+
+    #[test]
+    fn recognizes_binary_extensions() {
+        let binary_exts = ["png", "jpg", "jpeg", "gif", "pdf", "zip", "exe", "wasm", "mp3", "mp4", "ttf", "woff2"];
+        for ext in binary_exts {
+            assert!(is_binary_by_extension(ext), "expected {} to be binary", ext);
+        }
+    }
+
+    #[test]
+    fn allows_text_extensions() {
+        let text_exts = ["ts", "rs", "py", "go", "md", "json", "txt", "html", "css"];
+        for ext in text_exts {
+            assert!(!is_binary_by_extension(ext), "expected {} to be text", ext);
+        }
+    }
+
+    #[test]
+    fn binary_detection_is_case_insensitive() {
+        assert!(is_binary_by_extension("PNG"));
+        assert!(is_binary_by_extension("Jpg"));
+        assert!(is_binary_by_extension("WASM"));
+    }
+
+    // ── should_exclude_dir ──
+
+    #[test]
+    fn excludes_known_dirs() {
+        let excluded = ["node_modules", ".git", "dist", "build", "target", "__pycache__", ".next", ".nuxt", "coverage", ".turbo", ".cache"];
+        for dir in excluded {
+            assert!(should_exclude_dir(dir), "expected {} to be excluded", dir);
+        }
+    }
+
+    #[test]
+    fn allows_normal_dirs() {
+        assert!(!should_exclude_dir("src"));
+        assert!(!should_exclude_dir("lib"));
+        assert!(!should_exclude_dir("components"));
+        assert!(!should_exclude_dir("tests"));
+    }
+
+    // ── canonicalize_for_write ──
+
+    #[test]
+    fn canonicalize_for_write_existing_file() {
+        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("Cargo.toml");
+        let result = canonicalize_for_write(&path);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn canonicalize_for_write_new_file_in_existing_dir() {
+        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("nonexistent_test_file.txt");
+        let result = canonicalize_for_write(&path);
+        assert!(result.is_ok());
+        let canonical = result.unwrap();
+        assert!(canonical.to_string_lossy().contains("nonexistent_test_file.txt"));
+    }
+}

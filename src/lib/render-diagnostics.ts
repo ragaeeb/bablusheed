@@ -24,14 +24,14 @@ export function useRenderDiagnostics({
   windowMs = 3000,
 }: RenderDiagnosticsOptions): void {
   const stateRef = useRef<RenderBurstState>({
-    startedAt: 0,
     count: 0,
+    startedAt: 0,
     warned: false,
   });
 
   useEffect(() => {
     if (!enabled) {
-      stateRef.current = { startedAt: 0, count: 0, warned: false };
+      stateRef.current = { count: 0, startedAt: 0, warned: false };
       return;
     }
 
@@ -51,7 +51,7 @@ export function useRenderDiagnostics({
     if (!state.warned && state.count >= threshold) {
       state.warned = true;
       onLog?.(
-        `[${new Date().toISOString()}] render-burst component=${component} count=${state.count} windowMs=${windowMs}`
+        `[${new Date().toISOString()}] render-burst component=${component} count=${state.count} windowMs=${windowMs}`,
       );
     }
   });
