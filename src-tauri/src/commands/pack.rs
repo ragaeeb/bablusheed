@@ -577,7 +577,122 @@ pub async fn pack_files(request: PackRequest) -> Result<PackResponse, String> {
 
 #[cfg(test)]
 mod tests {
-    use super::extract_quoted_segments;
+    use super::*;
+    use crate::models::FileContent;
+
+    // ── estimate_tokens ──
+
+    #[test]
+    fn estimate_tokens_basic() {
+        assert_eq!(estimate_tokens("abcd"), 1);
+        assert_eq!(estimate_tokens("abcdefgh"), 2);
+        assert_eq!(estimate_tokens(""), 1); // max(0,1) = 1
+    }
+
+    // ── normalize_path ──
+
+    #[test]
+    fn normalize_removes_dot_segments() {
+        assert_eq!(normalize_path("a/./b"), "a/b");
+        assert_eq!(normalize_path("./a/b"), "a/b");
+    }
+
+    #[test]
+    fn normalize_resolves_parent_segments() {
+        assert_eq!(normalize_path("a/b/../c"), "a/c");
+        assert_eq!(normalize_path("a/b/../../c"), "c");
+    }
+
+    #[test]
+    fn normalize_handles_backslashes() {
+        assert_eq!(normalize_path("a\\b\\c"), "a/b/c");
+    }
+
+    #[test]
+    fn normalize_collapses_empty_segments() {
+        assert_eq!(normalize_path("a//b///c"), "a/b/c");
+    }
+
+    // ── parent_dir ──
+
+    #[test]
+    fn parent_dir_returns_directory() {
+        assert_eq!(parent_dir("src/lib/foo.ts"), "src/lib");
+    }
+
+    #[test]
+    fn parent_dir_returns_empty_for_top_level() {
+        assert_eq!(parent_dir("foo.ts"), "");
+    }
+
+    // ── has_extension / path_extension / file_basename ──
+
+    #[test]
+    fn has_extension_detects_ext() {
+        assert!(has_extension("file.ts"));
+        assert!(!has_extension("Makefile"));
+    }
+
+    #[test]
+    fn path_extension_extracts_lowercase() {
+        assert_eq!(path_extension("file.TS"), "ts");
+        assert_eq!(path_extension("file.Rs"), "rs");
+        assert_eq!(path_extension("noext"), "");
+    }
+
+    #[test]
+    fn file_basename_extracts_name() {
+        assert_eq!(file_basename("src/lib/foo.ts"), "foo.ts");
+        assert_eq!(file_basename("README.md"), "readme.md");
+    }
+
+    // ── is_doc_file ──
+
+    #[test]
+    fn is_doc_file_recognizes_doc_extensions() {
+        assert!(is_doc_file("README.md"));
+        assert!(is_doc_file("guide.mdx"));
+        assert!(is_doc_file("notes.txt"));
+        assert!(is_doc_file("spec.rst"));
+        assert!(is_doc_file("help.adoc"));
+    }
+
+    #[test]
+    fn is_doc_file_rejects_code_files() {
+        assert!(!is_doc_file("main.ts"));
+        assert!(!is_doc_file("lib.rs"));
+        assert!(!is_doc_file("config.json"));
+    }
+
+    // ── doc_priority ──
+
+    #[test]
+    fn doc_priority_readme_first() {
+        let (bucket, _) = doc_priority("README.md");
+        assert_eq!(bucket, 0);
+    }
+
+    #[test]
+    fn doc_priority_architecture_docs_second() {
+        for name in &["OVERVIEW.md", "architecture.md", "design.md", "spec.md", "CONTRIBUTING.md"] {
+            let (bucket, _) = doc_priority(name);
+            assert_eq!(bucket, 1, "expected bucket 1 for {}", name);
+        }
+    }
+
+    #[test]
+    fn doc_priority_docs_folder_third() {
+        let (bucket, _) = doc_priority("docs/guide.md");
+        assert_eq!(bucket, 2);
+    }
+
+    #[test]
+    fn doc_priority_other_docs_last() {
+        let (bucket, _) = doc_priority("random-notes.md");
+        assert_eq!(bucket, 3);
+    }
+
+    // ── extract_quoted_segments ──
 
     #[test]
     fn should_extract_closed_quoted_segments() {
@@ -591,5 +706,268 @@ mod tests {
         let line = r#"import foo from "./foo"#;
         let parts = extract_quoted_segments(line);
         assert!(parts.is_empty());
+    }
+
+    #[test]
+    fn should_handle_escaped_quotes_in_segments() {
+        let line = r#"import foo from "path/with\"quote""#;
+        let parts = extract_quoted_segments(line);
+        assert_eq!(parts.len(), 1);
+        assert!(parts[0].contains("with"));
+    }
+
+    // ── extract_module_specifiers ──
+
+    #[test]
+    fn extract_js_imports() {
+        let content = r#"import { foo } from "./foo";
+import bar from "../bar";
+"#;
+        let specs = extract_module_specifiers(content);
+        assert!(specs.contains(&"./foo".to_string()));
+        assert!(specs.contains(&"../bar".to_string()));
+    }
+
+    #[test]
+    fn extract_python_from_import() {
+        let content = "from foo.bar import baz\n";
+        let specs = extract_module_specifiers(content);
+        assert!(specs.contains(&"foo/bar".to_string()));
+    }
+
+    #[test]
+    fn extract_python_plain_import() {
+        let content = "import os, sys\n";
+        let specs = extract_module_specifiers(content);
+        assert!(specs.contains(&"os".to_string()));
+        assert!(specs.contains(&"sys".to_string()));
+    }
+
+    #[test]
+    fn extract_rust_mod() {
+        let content = "mod utils;\npub mod helpers;\n";
+        let specs = extract_module_specifiers(content);
+        assert!(specs.contains(&"./utils".to_string()));
+        assert!(specs.contains(&"./helpers".to_string()));
+    }
+
+    #[test]
+    fn extract_skips_comments_and_blanks() {
+        let content = "// import foo from 'bar';\n# comment\n\n";
+        let specs = extract_module_specifiers(content);
+        assert!(specs.is_empty());
+    }
+
+    // ── resolve_module_specifier ──
+
+    #[test]
+    fn resolve_relative_import() {
+        let mut path_to_idx = HashMap::new();
+        path_to_idx.insert("src/lib/utils.ts".to_string(), 0usize);
+        let result = resolve_module_specifier("./utils", "src/lib/foo.ts", &path_to_idx);
+        assert_eq!(result, Some(0));
+    }
+
+    #[test]
+    fn resolve_at_alias_import() {
+        let mut path_to_idx = HashMap::new();
+        path_to_idx.insert("src/lib/utils.ts".to_string(), 0usize);
+        let result = resolve_module_specifier("@/lib/utils", "src/components/App.tsx", &path_to_idx);
+        assert_eq!(result, Some(0));
+    }
+
+    #[test]
+    fn resolve_returns_none_for_external_modules() {
+        let path_to_idx = HashMap::new();
+        assert_eq!(resolve_module_specifier("react", "src/App.tsx", &path_to_idx), None);
+    }
+
+    #[test]
+    fn resolve_returns_none_for_http_urls() {
+        let path_to_idx = HashMap::new();
+        assert_eq!(resolve_module_specifier("https://cdn.example.com/lib.js", "src/App.tsx", &path_to_idx), None);
+    }
+
+    #[test]
+    fn resolve_returns_none_for_node_builtins() {
+        let path_to_idx = HashMap::new();
+        assert_eq!(resolve_module_specifier("node:path", "src/App.tsx", &path_to_idx), None);
+    }
+
+    #[test]
+    fn resolve_with_explicit_extension() {
+        let mut path_to_idx = HashMap::new();
+        path_to_idx.insert("src/lib/utils.ts".to_string(), 0usize);
+        let result = resolve_module_specifier("@/lib/utils.ts", "src/App.tsx", &path_to_idx);
+        assert_eq!(result, Some(0));
+    }
+
+    #[test]
+    fn resolve_tries_index_files() {
+        let mut path_to_idx = HashMap::new();
+        path_to_idx.insert("src/lib/index.ts".to_string(), 0usize);
+        let result = resolve_module_specifier("@/lib", "src/App.tsx", &path_to_idx);
+        assert_eq!(result, Some(0));
+    }
+
+    // ── format_file_header ──
+
+    #[test]
+    fn format_markdown_wraps_in_code_block() {
+        let result = format_file_header("src/main.ts", "const x = 1;", "markdown");
+        assert!(result.starts_with("```typescript"));
+        assert!(result.contains("// src/main.ts"));
+        assert!(result.contains("const x = 1;"));
+        assert!(result.ends_with("```"));
+    }
+
+    #[test]
+    fn format_plaintext_uses_path_comment() {
+        let result = format_file_header("src/main.ts", "const x = 1;", "plaintext");
+        assert!(result.starts_with("// src/main.ts"));
+        assert!(result.contains("const x = 1;"));
+        assert!(!result.contains("```"));
+    }
+
+    #[test]
+    fn format_markdown_maps_extensions_to_languages() {
+        let cases = vec![
+            ("file.rs", "rust"),
+            ("file.py", "python"),
+            ("file.go", "go"),
+            ("file.json", "json"),
+            ("file.md", "markdown"),
+            ("file.css", "css"),
+            ("file.xyz", "text"),
+        ];
+        for (path, expected_lang) in cases {
+            let result = format_file_header(path, "", "markdown");
+            assert!(result.starts_with(&format!("```{expected_lang}")), "expected {expected_lang} for {path}, got: {result}");
+        }
+    }
+
+    // ── split_docs_and_code ──
+
+    #[test]
+    fn split_docs_and_code_separates_correctly() {
+        let files = vec![
+            FileContent { path: "README.md".into(), content: "doc".into(), token_count: None },
+            FileContent { path: "main.ts".into(), content: "code".into(), token_count: None },
+            FileContent { path: "guide.txt".into(), content: "doc".into(), token_count: None },
+        ];
+        let ordered: Vec<usize> = (0..3).collect();
+        let (docs, code) = split_docs_and_code(&ordered, &files);
+
+        assert_eq!(docs.len(), 2);
+        assert_eq!(code.len(), 1);
+        assert!(docs.contains(&0));
+        assert!(docs.contains(&2));
+        assert!(code.contains(&1));
+    }
+
+    #[test]
+    fn split_docs_places_readme_first() {
+        let files = vec![
+            FileContent { path: "guide.md".into(), content: "".into(), token_count: None },
+            FileContent { path: "README.md".into(), content: "".into(), token_count: None },
+        ];
+        let ordered = vec![0, 1];
+        let (docs, _) = split_docs_and_code(&ordered, &files);
+        assert_eq!(docs[0], 1, "README should come first");
+    }
+
+    // ── distribute_files ──
+
+    #[test]
+    fn distribute_single_pack() {
+        let indices = vec![0, 1, 2];
+        let tokens = vec![100, 200, 300];
+        let bins = distribute_files(&indices, 1, &tokens);
+        assert_eq!(bins.len(), 1);
+        assert_eq!(bins[0], vec![0, 1, 2]);
+    }
+
+    #[test]
+    fn distribute_empty_input() {
+        let bins = distribute_files(&[], 3, &[]);
+        assert!(bins.is_empty());
+    }
+
+    #[test]
+    fn distribute_two_equal_packs() {
+        let indices = vec![0, 1, 2, 3];
+        let tokens = vec![100, 100, 100, 100];
+        let bins = distribute_files(&indices, 2, &tokens);
+        assert_eq!(bins.len(), 2);
+        let total: usize = bins.iter().map(|b| b.len()).sum();
+        assert_eq!(total, 4);
+    }
+
+    #[test]
+    fn distribute_more_packs_than_files_clamps() {
+        let indices = vec![0, 1];
+        let tokens = vec![200, 100];
+        let bins = distribute_files(&indices, 10, &tokens);
+        assert_eq!(bins.len(), 2);
+        assert_eq!(bins[0], vec![0]);
+        assert_eq!(bins[1], vec![1]);
+    }
+
+    #[test]
+    fn distribute_preserves_order() {
+        let indices = vec![0, 1, 2, 3, 4, 5];
+        let tokens = vec![10, 10, 10, 10, 10, 10];
+        let bins = distribute_files(&indices, 3, &tokens);
+        let flattened: Vec<usize> = bins.into_iter().flatten().collect();
+        assert_eq!(flattened, vec![0, 1, 2, 3, 4, 5]);
+    }
+
+    // ── compute_dependency_order ──
+
+    #[test]
+    fn dependency_order_respects_imports() {
+        let files = vec![
+            FileContent { path: "a.ts".into(), content: "import { b } from \"./b\";\n".into(), token_count: None },
+            FileContent { path: "b.ts".into(), content: "export const b = 1;\n".into(), token_count: None },
+        ];
+        let order = compute_dependency_order(&files);
+        let pos_a = order.iter().position(|&i| i == 0).unwrap();
+        let pos_b = order.iter().position(|&i| i == 1).unwrap();
+        assert!(pos_b < pos_a, "b.ts (dependency) should appear before a.ts");
+    }
+
+    #[test]
+    fn dependency_order_handles_single_file() {
+        let files = vec![
+            FileContent { path: "only.ts".into(), content: "const x = 1;\n".into(), token_count: None },
+        ];
+        let order = compute_dependency_order(&files);
+        assert_eq!(order, vec![0]);
+    }
+
+    #[test]
+    fn dependency_order_handles_empty() {
+        let order = compute_dependency_order(&[]);
+        assert!(order.is_empty());
+    }
+
+    // ── group_code_by_related_components ──
+
+    #[test]
+    fn grouping_keeps_connected_files_adjacent() {
+        let files = vec![
+            FileContent { path: "a.ts".into(), content: "import { b } from \"./b\";\n".into(), token_count: None },
+            FileContent { path: "b.ts".into(), content: "export const b = 1;\n".into(), token_count: None },
+            FileContent { path: "c.ts".into(), content: "const c = 1;\n".into(), token_count: None },
+        ];
+        let order = compute_dependency_order(&files);
+        let related = build_related_adjacency(&files);
+        let grouped = group_code_by_related_components(&order, &related);
+        assert_eq!(grouped.len(), 3);
+
+        let pos_a = grouped.iter().position(|&i| i == 0).unwrap();
+        let pos_b = grouped.iter().position(|&i| i == 1).unwrap();
+        let distance = if pos_a > pos_b { pos_a - pos_b } else { pos_b - pos_a };
+        assert_eq!(distance, 1, "a and b should be adjacent since they're connected");
     }
 }

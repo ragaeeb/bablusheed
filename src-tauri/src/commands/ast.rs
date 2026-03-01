@@ -98,7 +98,7 @@ fn extract_symbols_from_node(
     }
 
     // Recurse for program/module top level
-    if matches!(node.kind(), "program" | "source_file" | "translation_unit") {
+    if matches!(node.kind(), "program" | "module" | "source_file" | "translation_unit") {
         let mut cursor = node.walk();
         for child in node.children(&mut cursor) {
             extract_symbols_from_node(child, source, depth, symbols);
@@ -190,7 +190,7 @@ fn collect_symbol_references_from_node(
         _ => {}
     }
 
-    if matches!(node.kind(), "program" | "source_file" | "translation_unit") {
+    if matches!(node.kind(), "program" | "module" | "source_file" | "translation_unit") {
         let mut cursor = node.walk();
         for child in node.children(&mut cursor) {
             collect_symbol_references_from_node(child, source, depth, symbol_refs);
@@ -289,4 +289,138 @@ pub async fn analyze_reachability(
         reachable_symbols,
         unreachable_symbols,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ── get_extension ──
+
+    #[test]
+    fn get_extension_extracts_ext() {
+        assert_eq!(get_extension("foo.ts"), "ts");
+        assert_eq!(get_extension("path/to/file.rs"), "rs");
+        assert_eq!(get_extension("Makefile"), "");
+    }
+
+    // ── get_language ──
+
+    #[test]
+    fn get_language_returns_some_for_supported() {
+        assert!(get_language("ts").is_some());
+        assert!(get_language("tsx").is_some());
+        assert!(get_language("js").is_some());
+        assert!(get_language("jsx").is_some());
+        assert!(get_language("py").is_some());
+        assert!(get_language("rs").is_some());
+        assert!(get_language("go").is_some());
+    }
+
+    #[test]
+    fn get_language_returns_none_for_unsupported() {
+        assert!(get_language("java").is_none());
+        assert!(get_language("rb").is_none());
+        assert!(get_language("").is_none());
+        assert!(get_language("md").is_none());
+    }
+
+    // ── extract_symbols ──
+
+    fn parse_and_extract(source: &str, ext: &str) -> Vec<String> {
+        let lang = get_language(ext).unwrap();
+        let mut parser = Parser::new();
+        parser.set_language(&lang).unwrap();
+        let tree = parser.parse(source.as_bytes(), None).unwrap();
+        extract_symbols(source.as_bytes(), &tree)
+    }
+
+    #[test]
+    fn extract_ts_function_declaration() {
+        let symbols = parse_and_extract("function foo() { return 1; }\nfunction bar() {}", "ts");
+        assert!(symbols.contains(&"foo".to_string()));
+        assert!(symbols.contains(&"bar".to_string()));
+    }
+
+    #[test]
+    fn extract_ts_const_declaration() {
+        let symbols = parse_and_extract("const x = 1;\nlet y = 2;\nvar z = 3;", "ts");
+        assert!(symbols.contains(&"x".to_string()));
+        assert!(symbols.contains(&"y".to_string()));
+        assert!(symbols.contains(&"z".to_string()));
+    }
+
+    #[test]
+    fn extract_ts_exported_symbols() {
+        let symbols = parse_and_extract("export function foo() {}\nexport const bar = 1;", "ts");
+        assert!(symbols.contains(&"foo".to_string()));
+        assert!(symbols.contains(&"bar".to_string()));
+    }
+
+    #[test]
+    fn extract_ts_class_declaration() {
+        let symbols = parse_and_extract("class MyClass {}\nexport class Other {}", "ts");
+        assert!(symbols.contains(&"MyClass".to_string()));
+        assert!(symbols.contains(&"Other".to_string()));
+    }
+
+    #[test]
+    fn extract_python_functions_and_classes() {
+        let source = "def foo():\n    pass\n\nclass Bar:\n    pass\n";
+        let symbols = parse_and_extract(source, "py");
+        assert!(symbols.contains(&"foo".to_string()));
+        assert!(symbols.contains(&"Bar".to_string()));
+    }
+
+    #[test]
+    fn extract_rust_items() {
+        let source = "fn helper() {}\nstruct Config {}\nenum Color { Red }\ntrait Render {}\nimpl Config {}";
+        let symbols = parse_and_extract(source, "rs");
+        assert!(symbols.contains(&"helper".to_string()));
+        assert!(symbols.contains(&"Config".to_string()));
+        assert!(symbols.contains(&"Color".to_string()));
+        assert!(symbols.contains(&"Render".to_string()));
+    }
+
+    #[test]
+    fn extract_go_functions() {
+        let source = "package main\n\nfunc Foo() {}\nfunc bar() {}";
+        let symbols = parse_and_extract(source, "go");
+        assert!(symbols.contains(&"Foo".to_string()));
+        assert!(symbols.contains(&"bar".to_string()));
+    }
+
+    // ── collect_symbol_references ──
+
+    fn parse_and_collect_refs(source: &str, ext: &str) -> HashMap<String, HashSet<String>> {
+        let lang = get_language(ext).unwrap();
+        let mut parser = Parser::new();
+        parser.set_language(&lang).unwrap();
+        let tree = parser.parse(source.as_bytes(), None).unwrap();
+        collect_symbol_references(source.as_bytes(), &tree)
+    }
+
+    #[test]
+    fn collect_refs_for_ts_function_calling_another() {
+        let source = "function helper() { return 1; }\nfunction main() { return helper(); }";
+        let refs = parse_and_collect_refs(source, "ts");
+        let main_refs = refs.get("main").expect("main should have refs");
+        assert!(main_refs.contains("helper"), "main should reference helper");
+    }
+
+    #[test]
+    fn collect_refs_excludes_self() {
+        let source = "function foo() { return foo(); }";
+        let refs = parse_and_collect_refs(source, "ts");
+        let foo_refs = refs.get("foo").unwrap_or(&HashSet::new()).clone();
+        assert!(!foo_refs.contains("foo"), "self-references should be excluded");
+    }
+
+    #[test]
+    fn collect_refs_for_python_function() {
+        let source = "def helper():\n    return 1\n\ndef main():\n    return helper()\n";
+        let refs = parse_and_collect_refs(source, "py");
+        let main_refs = refs.get("main").expect("main should have refs");
+        assert!(main_refs.contains("helper"));
+    }
 }
