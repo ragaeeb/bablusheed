@@ -1,3 +1,10 @@
+## [1.0.1](https://github.com/ragaeeb/bablusheed/compare/v1.0.0...v1.0.1) (2026-03-01)
+
+
+### Bug Fixes
+
+* **ast:** extract_symbols not getting captured for Python ([#13](https://github.com/ragaeeb/bablusheed/issues/13)) ([2e510e7](https://github.com/ragaeeb/bablusheed/commit/2e510e715e7dc4d2b1269b66ebca8a0bab66c3d2))
+
 # 1.0.0 (2026-02-28)
 
 
