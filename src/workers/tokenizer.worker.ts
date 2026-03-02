@@ -5,7 +5,9 @@ const encodingCache = new Map<string, ReturnType<typeof getEncoding>>();
 
 function getEncoder(encoding: TiktokenEncoding) {
   const cached = encodingCache.get(encoding);
-  if (cached) return cached;
+  if (cached) {
+    return cached;
+  }
   const enc = getEncoding(encoding);
   encodingCache.set(encoding, enc);
   return enc;
@@ -27,7 +29,7 @@ self.onmessage = (event: MessageEvent<WorkerMessage>) => {
       }
     });
 
-    const result: WorkerResult = { type: "result", requestId, results };
+    const result: WorkerResult = { requestId, results, type: "result" };
     self.postMessage(result);
   }
 };

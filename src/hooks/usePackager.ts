@@ -13,7 +13,8 @@ export function usePackager(
   fileContents: Map<string, string>,
   llmProfileId: string,
   contextWindowTokens: number,
-  tokenMap?: Map<string, number>
+  tokenMap?: Map<string, number>,
+  onLog?: (level: "error" | "info" | "debug", message: string) => void,
 ) {
   const [packResult, setPackResult] = useState<PackResponse | null>(null);
   const [isPacking, setIsPacking] = useState(false);
@@ -21,16 +22,24 @@ export function usePackager(
   const [packWarnings, setPackWarnings] = useState<string[]>([]);
 
   const pack = async (options: PackOptions) => {
-    if (selectedFiles.length === 0) return;
+    if (selectedFiles.length === 0) {
+      return;
+    }
 
     setIsPacking(true);
     setPackError(null);
     setPackWarnings([]);
+    onLog?.(
+      "info",
+      `pack start selected=${selectedFiles.filter((f) => !f.isDir).length} llm=${llmProfileId} numPacks=${options.numPacks} format=${options.outputFormat} ast=${options.astDeadCode && !!options.entryPoint}`,
+    );
 
     try {
       const rawContentMap = new Map<string, string>();
       for (const file of selectedFiles) {
-        if (file.isDir) continue;
+        if (file.isDir) {
+          continue;
+        }
         const rawContent = fileContents.get(file.path) ?? "";
         rawContentMap.set(file.path, rawContent);
       }
@@ -39,10 +48,27 @@ export function usePackager(
         options.astDeadCode && options.entryPoint
           ? await applyAstDeadCode(selectedFiles, rawContentMap, options.entryPoint)
           : rawContentMap;
+      if (options.astDeadCode && options.entryPoint) {
+        let changedFiles = 0;
+        let charDelta = 0;
+        for (const [path, raw] of rawContentMap) {
+          const processed = astProcessedContentMap.get(path) ?? "";
+          if (processed !== raw) {
+            changedFiles += 1;
+            charDelta += processed.length - raw.length;
+          }
+        }
+        onLog?.(
+          "info",
+          `pack ast processed files=${rawContentMap.size} changed=${changedFiles} charDelta=${charDelta}`,
+        );
+      }
 
       const contentMap = new Map<string, string>();
       for (const file of selectedFiles) {
-        if (file.isDir) continue;
+        if (file.isDir) {
+          continue;
+        }
         const baseContent = astProcessedContentMap.get(file.path) ?? "";
         let content = baseContent;
         const ext = file.extension.toLowerCase();
@@ -57,7 +83,7 @@ export function usePackager(
           content = minifyMarkdown(
             content,
             options.stripMarkdownHeadings,
-            options.stripMarkdownBlockquotes
+            options.stripMarkdownBlockquotes,
           );
         }
         contentMap.set(file.path, content);
@@ -66,30 +92,43 @@ export function usePackager(
       const files = selectedFiles
         .filter((f) => !f.isDir)
         .map((file) => ({
-          path: file.relativePath,
           content: contentMap.get(file.path) ?? "",
+          path: file.relativePath,
           tokenCount: tokenMap?.get(file.path),
         }));
 
       const advisoryMaxTokensPerFile = resolveAdvisoryMaxTokensPerFile(
         options.maxTokensPerPackFile,
-        contextWindowTokens
+        contextWindowTokens,
       );
       const balanced = splitOversizedFilesForPacking(files, advisoryMaxTokensPerFile);
       setPackWarnings(balanced.warnings);
+      if (balanced.warnings.length > 0) {
+        onLog?.("info", `pack warnings count=${balanced.warnings.length}`);
+      }
+      onLog?.(
+        "debug",
+        `pack balancing filesIn=${files.length} filesOut=${balanced.files.length} splitFiles=${balanced.splitFileCount} generatedParts=${balanced.generatedPartCount}`,
+      );
 
       const result = await invoke<PackResponse>("pack_files", {
         request: {
           files: balanced.files,
+          llmProfileId,
           numPacks: options.numPacks,
           outputFormat: options.outputFormat,
-          llmProfileId,
         },
       });
 
       setPackResult(result);
+      onLog?.(
+        "info",
+        `pack success packs=${result.packs.length} totalTokens=${result.totalTokens}`,
+      );
     } catch (err) {
-      setPackError(err instanceof Error ? err.message : String(err));
+      const message = err instanceof Error ? err.message : String(err);
+      setPackError(message);
+      onLog?.("error", `pack failed err=${message}`);
     } finally {
       setIsPacking(false);
     }
@@ -101,5 +140,5 @@ export function usePackager(
     setPackWarnings([]);
   };
 
-  return { packResult, isPacking, packError, packWarnings, pack, clearResult };
+  return { clearResult, isPacking, pack, packError, packResult, packWarnings };
 }

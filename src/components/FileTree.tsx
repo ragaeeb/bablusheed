@@ -45,30 +45,30 @@ function FileIcon({
   }
 
   const colorMap: Record<string, string> = {
+    css: "text-purple-500",
+    go: "text-cyan-600",
+    html: "text-orange-400",
+    js: "text-yellow-500",
+    json: "text-green-500",
+    jsx: "text-cyan-400",
+    lock: "text-slate-400",
+    md: "text-slate-400",
+    py: "text-blue-400",
+    rs: "text-orange-500",
+    sh: "text-emerald-500",
+    svg: "text-pink-400",
+    toml: "text-pink-500",
     ts: "text-blue-500",
     tsx: "text-cyan-500",
-    js: "text-yellow-500",
-    jsx: "text-cyan-400",
-    rs: "text-orange-500",
-    py: "text-blue-400",
-    go: "text-cyan-600",
-    md: "text-slate-400",
-    json: "text-green-500",
-    css: "text-purple-500",
-    html: "text-orange-400",
-    toml: "text-pink-500",
     yaml: "text-green-400",
     yml: "text-green-400",
-    svg: "text-pink-400",
-    sh: "text-emerald-500",
-    lock: "text-slate-400",
   };
 
   return (
     <File
       className={cn(
         "h-3.5 w-3.5 shrink-0",
-        colorMap[extension.toLowerCase()] ?? "text-muted-foreground/60"
+        colorMap[extension.toLowerCase()] ?? "text-muted-foreground/60",
       )}
     />
   );
@@ -104,7 +104,7 @@ function TreeRow({
       className={cn(
         "flex items-center gap-0.5 px-1 rounded-sm group cursor-pointer min-h-[22px] text-[12px]",
         isHighlighted ? "bg-primary/10 ring-1 ring-primary/30" : "hover:bg-muted/70",
-        isChecked && !node.isDir && "bg-primary/5"
+        isChecked && !node.isDir && "bg-primary/5",
       )}
       style={{ paddingLeft: `${depth * 10 + 4}px` }}
     >
@@ -135,12 +135,12 @@ function TreeRow({
         }}
         className="flex items-center justify-center h-3.5 w-3.5 shrink-0 rounded-sm border transition-colors"
         style={{
-          borderColor: isChecked || isIndeterminate ? "hsl(var(--primary))" : "hsl(var(--border))",
           backgroundColor: isChecked
             ? "hsl(var(--primary))"
             : isIndeterminate
               ? "hsl(var(--primary) / 0.3)"
               : "transparent",
+          borderColor: isChecked || isIndeterminate ? "hsl(var(--primary))" : "hsl(var(--border))",
         }}
         aria-label={`Select ${node.name}`}
       >
@@ -178,7 +178,7 @@ function TreeRow({
               ? "text-foreground/80 font-medium"
               : isChecked
                 ? "text-foreground"
-                : "text-foreground/70 group-hover:text-foreground/90"
+                : "text-foreground/70 group-hover:text-foreground/90",
           )}
         >
           {node.name}
@@ -245,8 +245,8 @@ export function FileTree({
 
   const rowVirtualizer = useVirtualizer({
     count: flatItems.length,
-    getScrollElement: () => containerRef.current,
     estimateSize: () => 22,
+    getScrollElement: () => containerRef.current,
     overscan: 10,
   });
 
@@ -334,7 +334,7 @@ export function FileTree({
                 "text-[10px] px-1.5 py-0.5 rounded border font-medium transition-colors",
                 filter === "clear"
                   ? "border-border text-muted-foreground hover:text-foreground hover:border-foreground/30"
-                  : "border-primary/30 text-primary/70 hover:text-primary hover:border-primary bg-primary/5 hover:bg-primary/10"
+                  : "border-primary/30 text-primary/70 hover:text-primary hover:border-primary bg-primary/5 hover:bg-primary/10",
               )}
             >
               {label}
@@ -363,12 +363,12 @@ export function FileTree({
                   role="treeitem"
                   aria-selected={item.node.checkState === "checked"}
                   style={{
+                    height: `${virtualItem.size}px`,
+                    left: 0,
                     position: "absolute",
                     top: 0,
-                    left: 0,
-                    width: "100%",
-                    height: `${virtualItem.size}px`,
                     transform: `translateY(${virtualItem.start}px)`,
+                    width: "100%",
                   }}
                   tabIndex={0}
                   onKeyDown={(e) => handleKeyDown(e, item)}

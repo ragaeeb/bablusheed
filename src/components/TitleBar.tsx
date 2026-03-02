@@ -22,10 +22,14 @@ export function TitleBar({ theme, onToggleTheme }: TitleBarProps) {
       className="flex items-center justify-between h-8 px-3 bg-card border-b border-border select-none shrink-0"
       style={{ minHeight: 32 }}
       onMouseDown={(e) => {
-        if (e.button !== 0) return;
+        if (e.button !== 0) {
+          return;
+        }
         const target = e.target as HTMLElement;
         // Don't drag if clicking a button or interactive element
-        if (target.closest("button")) return;
+        if (target.closest("button")) {
+          return;
+        }
         runWindowAction("startDragging", () => appWindow.startDragging());
       }}
     >

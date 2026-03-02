@@ -99,7 +99,9 @@ export function getProfile(id: string): LLMProfile {
 }
 
 export function getTokenizerEncoding(tokenizer: LLMProfile["tokenizer"]): "openai" | "approx" {
-  if (tokenizer === "o200k") return "openai";
+  if (tokenizer === "o200k") {
+    return "openai";
+  }
   return "approx";
 }
 

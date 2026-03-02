@@ -22,6 +22,7 @@ function isLikelyExportedSymbol(content: string, symbol: string, ext: string): b
       new RegExp(`^\\s*export\\s+(?:const|let|var)\\s+${escaped}\\b`, "m"),
       new RegExp(`^\\s*export\\s+class\\s+${escaped}\\b`, "m"),
       new RegExp(`^\\s*export\\s*\\{[^}]*\\b${escaped}\\b[^}]*\\}`, "m"),
+      new RegExp(`^\\s*export\\s+default\\s+${escaped}\\b`, "m"),
     ];
     return patterns.some((pattern) => pattern.test(content));
   }
@@ -50,12 +51,14 @@ function isLikelyExportedSymbol(content: string, symbol: string, ext: string): b
  * Uses regex-based approach for TS/JS/Python/Rust/Go.
  */
 export function stripUnreachableSymbols(content: string, symbols: string[], ext: string): string {
-  if (symbols.length === 0) return content;
+  if (symbols.length === 0) {
+    return content;
+  }
 
   // Skip regex stripping on large files to avoid pathological regex behavior.
   if (content.length > MAX_STRIP_SIZE) {
     console.warn(
-      `stripUnreachableSymbols: skipping ${ext} file (${content.length} chars > MAX_STRIP_SIZE ${MAX_STRIP_SIZE})`
+      `stripUnreachableSymbols: skipping ${ext} file (${content.length} chars > MAX_STRIP_SIZE ${MAX_STRIP_SIZE})`,
     );
     return content;
   }
@@ -72,54 +75,54 @@ export function stripUnreachableSymbols(content: string, symbols: string[], ext:
       result = result.replace(
         new RegExp(
           `(^|\\n)(?![ \\t])(?:async\\s+)?function\\s+${escaped}\\s*[(<][\\s\\S]*?(?=\\n(?![ \\t])(?:export|async\\s+function|function|const|let|var|class|interface|type|enum|//|/\\*|$)|$)`,
-          "g"
+          "g",
         ),
-        "$1"
+        "$1",
       );
       result = result.replace(
         new RegExp(
           `(^|\\n)(?![ \\t])(?:const|let|var)\\s+${escaped}\\s*=[\\s\\S]*?(?=\\n(?![ \\t])(?:export|async\\s+function|function|const|let|var|class|interface|type|enum|//|/\\*|$)|$)`,
-          "g"
+          "g",
         ),
-        "$1"
+        "$1",
       );
       result = result.replace(
         new RegExp(
           `(^|\\n)(?![ \\t])class\\s+${escaped}[\\s\\S]*?(?=\\n(?![ \\t])(?:export|async\\s+function|function|const|let|var|class|interface|type|enum|//|/\\*|$)|$)`,
-          "g"
+          "g",
         ),
-        "$1"
+        "$1",
       );
     } else if (ext === "py") {
       result = result.replace(
         new RegExp(
           `(^|\\n)(?![ \\t])def\\s+${escaped}\\s*\\([\\s\\S]*?(?=\\n(?![ \\t])(?:def\\s|class\\s)|$)`,
-          "g"
+          "g",
         ),
-        "$1"
+        "$1",
       );
       result = result.replace(
         new RegExp(
           `(^|\\n)(?![ \\t])class\\s+${escaped}[\\s\\S]*?(?=\\n(?![ \\t])(?:def\\s|class\\s)|$)`,
-          "g"
+          "g",
         ),
-        "$1"
+        "$1",
       );
     } else if (ext === "rs") {
       result = result.replace(
         new RegExp(
           `(^|\\n)(?![ \\t])(?:async\\s+)?fn\\s+${escaped}[\\s\\S]*?(?=\\n(?![ \\t])(?:pub|fn|struct|impl|enum|trait|use|mod|//|/\\*|$)|$)`,
-          "g"
+          "g",
         ),
-        "$1"
+        "$1",
       );
     } else if (ext === "go") {
       result = result.replace(
         new RegExp(
           `(^|\\n)(?![ \\t])func\\s+(?:\\([^)]+\\)\\s+)?${escaped}\\s*\\([^)]*\\)[\\s\\S]*?(?=\\n(?![ \\t])(?:func\\s|type\\s|var\\s|const\\s|import\\s|package\\s)|$)`,
-          "g"
+          "g",
         ),
-        "$1"
+        "$1",
       );
     }
   }
@@ -130,18 +133,22 @@ export function stripUnreachableSymbols(content: string, symbols: string[], ext:
 export async function applyAstDeadCode(
   selectedFiles: FileTreeNode[],
   contentMap: Map<string, string>,
-  entryPoint: string | null
+  entryPoint: string | null,
 ): Promise<Map<string, string>> {
-  if (!entryPoint) return contentMap;
+  if (!entryPoint) {
+    return contentMap;
+  }
 
   const astFiles = selectedFiles
     .filter((f) => !f.isDir && AST_SUPPORTED_EXTENSIONS.has(f.extension.toLowerCase()))
     .map((f) => ({
-      path: f.path,
       content: contentMap.get(f.path) ?? "",
+      path: f.path,
     }));
 
-  if (astFiles.length === 0) return contentMap;
+  if (astFiles.length === 0) {
+    return contentMap;
+  }
 
   try {
     const reachability = await invoke<ReachabilityResult>("analyze_reachability", {
@@ -151,14 +158,18 @@ export async function applyAstDeadCode(
 
     const next = new Map(contentMap);
     for (const file of selectedFiles) {
-      if (file.isDir) continue;
+      if (file.isDir) {
+        continue;
+      }
       const unreachable = reachability.unreachable_symbols[file.path];
-      if (!unreachable || unreachable.length === 0) continue;
+      if (!unreachable || unreachable.length === 0) {
+        continue;
+      }
 
       const current = next.get(file.path) ?? "";
       next.set(
         file.path,
-        stripUnreachableSymbols(current, unreachable, file.extension.toLowerCase())
+        stripUnreachableSymbols(current, unreachable, file.extension.toLowerCase()),
       );
     }
 

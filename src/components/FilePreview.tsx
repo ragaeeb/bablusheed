@@ -1,27 +1,27 @@
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { Check, Copy, Eye, EyeOff, Loader2 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { cn, formatTokenCount, minifyMarkdown, reduceWhitespace, stripComments } from "@/lib/utils";
 import type { FileTreeNode, PackOptions } from "@/types";
 
 const colorMap: Record<string, string> = {
+  css: "text-purple-500",
+  go: "text-cyan-600",
+  html: "text-orange-400",
+  js: "text-yellow-500",
+  json: "text-green-500",
+  jsx: "text-cyan-400",
+  lock: "text-slate-400",
+  md: "text-slate-400",
+  py: "text-blue-400",
+  rs: "text-orange-500",
+  sh: "text-emerald-500",
+  svg: "text-pink-400",
+  toml: "text-pink-500",
   ts: "text-blue-500",
   tsx: "text-cyan-500",
-  js: "text-yellow-500",
-  jsx: "text-cyan-400",
-  rs: "text-orange-500",
-  py: "text-blue-400",
-  go: "text-cyan-600",
-  md: "text-slate-400",
-  json: "text-green-500",
-  css: "text-purple-500",
-  html: "text-orange-400",
-  toml: "text-pink-500",
   yaml: "text-green-400",
   yml: "text-green-400",
-  svg: "text-pink-400",
-  sh: "text-emerald-500",
-  lock: "text-slate-400",
 };
 
 interface FilePreviewProps {
@@ -39,6 +39,8 @@ interface FilePreviewProps {
   isSelected: boolean;
   onToggleSelect: (id: string) => void;
   onLoadContent?: (path: string) => Promise<void>;
+  debugLogging?: boolean;
+  onDebugLog?: (line: string) => void;
   onClose: () => void;
 }
 
@@ -50,14 +52,25 @@ export function FilePreview({
   isSelected,
   onToggleSelect,
   onLoadContent,
+  debugLogging = false,
+  onDebugLog,
   onClose,
 }: FilePreviewProps) {
   const [copied, setCopied] = useState(false);
   const [copyError, setCopyError] = useState(false);
   const [showOptimized, setShowOptimized] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const inFlightLoadsRef = useRef(new Set<string>());
   const cachedPathsRef = useRef(new Set<string>());
+
+  const logDebug = useCallback(
+    (message: string) => {
+      if (!debugLogging || !onDebugLog) {
+        return;
+      }
+      onDebugLog(`[preview] ${message}`);
+    },
+    [debugLogging, onDebugLog],
+  );
 
   useEffect(() => {
     cachedPathsRef.current = new Set(fileContents.keys());
@@ -68,39 +81,53 @@ export function FilePreview({
   // not on every Map mutation.
   const filePath = file?.path;
   useEffect(() => {
-    if (!filePath) return;
-    if (cachedPathsRef.current.has(filePath)) return;
-    if (!onLoadContent) return;
-    if (inFlightLoadsRef.current.has(filePath)) return;
+    if (!filePath) {
+      return;
+    }
+    if (cachedPathsRef.current.has(filePath)) {
+      setIsLoading(false);
+      logDebug(`cache-hit path=${filePath}`);
+      return;
+    }
+    if (!onLoadContent) {
+      setIsLoading(false);
+      return;
+    }
 
-    inFlightLoadsRef.current.add(filePath);
-    let cancelled = false;
+    const startedAt = Date.now();
+    let alive = true;
     setIsLoading(true);
+    logDebug(`load-start path=${filePath}`);
     onLoadContent(filePath)
       .catch((err) => {
         console.error("Failed to load preview content:", err);
+        logDebug(`load-error path=${filePath} err=${String(err)}`);
       })
       .finally(() => {
-        inFlightLoadsRef.current.delete(filePath);
-        if (!cancelled) {
+        if (alive) {
           setIsLoading(false);
+          logDebug(`load-done path=${filePath} ms=${Date.now() - startedAt}`);
         }
       });
     return () => {
-      cancelled = true;
+      alive = false;
     };
-  }, [filePath, onLoadContent]);
+  }, [filePath, onLoadContent, logDebug]);
 
   // Close on Escape
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") {
+        onClose();
+      }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [onClose]);
 
-  if (!file) return null;
+  if (!file) {
+    return null;
+  }
 
   const rawContent = fileContents.get(file.path) ?? "";
   const tokens = tokenMap.get(file.path) ?? 0;
@@ -119,7 +146,7 @@ export function FilePreview({
     optimizedContent = minifyMarkdown(
       optimizedContent,
       packOptions.stripMarkdownHeadings,
-      packOptions.stripMarkdownBlockquotes
+      packOptions.stripMarkdownBlockquotes,
     );
   }
 
@@ -151,11 +178,13 @@ export function FilePreview({
         {/* Breadcrumb */}
         <div className="flex items-center gap-1 text-[11px] font-mono text-muted-foreground/70 mb-1.5 flex-wrap">
           {parts.map((part, i) => (
-            <span key={`breadcrumb-${i}-${part}`} className="flex items-center gap-1">
+            <span key={`breadcrumb-${i.toString()}-${part}`} className="flex items-center gap-1">
               {i > 0 && <span className="text-muted-foreground/40">/</span>}
               <span
                 className={cn(
-                  i === parts.length - 1 ? `font-semibold ${iconColor}` : "text-muted-foreground/60"
+                  i === parts.length - 1
+                    ? `font-semibold ${iconColor}`
+                    : "text-muted-foreground/60",
                 )}
               >
                 {part}
@@ -184,7 +213,7 @@ export function FilePreview({
                 "inline-flex items-center gap-1 h-6 px-2 text-[11px] font-medium rounded border transition-colors",
                 showOptimized
                   ? "bg-primary/10 border-primary/30 text-primary"
-                  : "bg-background border-border text-muted-foreground hover:text-foreground hover:border-primary/50"
+                  : "bg-background border-border text-muted-foreground hover:text-foreground hover:border-primary/50",
               )}
               title={showOptimized ? "Show raw content" : "Show optimized content"}
             >
@@ -203,7 +232,7 @@ export function FilePreview({
                 ? "bg-emerald-50 border-emerald-200 text-emerald-600 dark:bg-emerald-900/20 dark:border-emerald-700 dark:text-emerald-400"
                 : copyError
                   ? "bg-red-50 border-red-200 text-red-600 dark:bg-red-900/20 dark:border-red-700 dark:text-red-400"
-                  : "bg-background border-border text-muted-foreground hover:text-foreground hover:border-primary/50"
+                  : "bg-background border-border text-muted-foreground hover:text-foreground hover:border-primary/50",
             )}
           >
             {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
@@ -218,7 +247,7 @@ export function FilePreview({
               "inline-flex items-center gap-1 h-6 px-2 text-[11px] font-medium rounded border transition-colors",
               isSelected
                 ? "bg-primary text-primary-foreground border-primary hover:bg-primary/90"
-                : "bg-background border-border text-muted-foreground hover:text-foreground hover:border-primary/50"
+                : "bg-background border-border text-muted-foreground hover:text-foreground hover:border-primary/50",
             )}
           >
             {isSelected ? "Deselect" : "Select"}

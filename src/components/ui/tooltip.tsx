@@ -21,7 +21,7 @@ interface TooltipContentProps
 }
 
 const TooltipContent = React.forwardRef<
-  React.ElementRef<typeof TooltipPrimitive.Popup>,
+  React.ComponentRef<typeof TooltipPrimitive.Popup>,
   TooltipContentProps
 >(({ className, sideOffset = 4, side = "top", ...props }, ref) => (
   <TooltipPrimitive.Portal>
@@ -31,7 +31,7 @@ const TooltipContent = React.forwardRef<
         className={cn(
           "overflow-hidden rounded border border-border bg-popover px-2.5 py-1.5 text-xs text-popover-foreground shadow-md",
           "data-[ending-style]:opacity-0 data-[starting-style]:opacity-0",
-          className
+          className,
         )}
         {...props}
       />

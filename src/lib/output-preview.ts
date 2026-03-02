@@ -2,7 +2,7 @@ import type { PackItem } from "@/types";
 
 export function buildPackFileTokenMap(
   packs: PackItem[],
-  tokenMap?: Map<string, number>
+  tokenMap?: Map<string, number>,
 ): Map<string, number> {
   const fileTokenMap = new Map<string, number>();
 

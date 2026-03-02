@@ -27,34 +27,36 @@ export function formatFileSize(bytes: number): string {
 
 export function getFileIcon(extension: string): string {
   const iconMap: Record<string, string> = {
+    bash: "shell",
+    css: "css",
+    go: "go",
+    html: "html",
+    js: "javascript",
+    json: "json",
+    jsx: "react",
+    md: "markdown",
+    py: "python",
+    rs: "rust",
+    sh: "shell",
+    toml: "toml",
     ts: "typescript",
     tsx: "react",
-    js: "javascript",
-    jsx: "react",
-    rs: "rust",
-    py: "python",
-    go: "go",
-    md: "markdown",
-    json: "json",
-    css: "css",
-    html: "html",
-    toml: "toml",
+    txt: "text",
     yaml: "yaml",
     yml: "yaml",
-    sh: "shell",
-    bash: "shell",
-    txt: "text",
   };
   return iconMap[extension.toLowerCase()] ?? "file";
 }
 
 export function debounce<T extends (...args: unknown[]) => unknown>(
   fn: T,
-  delay: number
+  delay: number,
 ): (...args: Parameters<T>) => void {
   let timer: ReturnType<typeof setTimeout> | null = null;
   return (...args: Parameters<T>) => {
-    if (timer) clearTimeout(timer);
+    if (timer) {
+      clearTimeout(timer);
+    }
     timer = setTimeout(() => fn(...args), delay);
   };
 }
@@ -84,9 +86,13 @@ function findCommentStart(line: string): number {
     const c = line[i];
     // A quote is escaped when preceded by an odd number of backslashes
     const isEscaped = countPrecedingBackslashes(line, i) % 2 === 1;
-    if (c === "'" && !inDouble && !isEscaped) inSingle = !inSingle;
-    else if (c === '"' && !inSingle && !isEscaped) inDouble = !inDouble;
-    else if (c === "#" && !inSingle && !inDouble) return i;
+    if (c === "'" && !inDouble && !isEscaped) {
+      inSingle = !inSingle;
+    } else if (c === '"' && !inSingle && !isEscaped) {
+      inDouble = !inDouble;
+    } else if (c === "#" && !inSingle && !inDouble) {
+      return i;
+    }
   }
   return -1;
 }
@@ -199,7 +205,9 @@ export function stripComments(content: string, extension: string): string {
       .split("\n")
       .map((line, index) => {
         // Preserve shebang on first line
-        if (index === 0 && line.startsWith("#!")) return line;
+        if (index === 0 && line.startsWith("#!")) {
+          return line;
+        }
         const commentStart = findCommentStart(line);
         return commentStart === -1 ? line : line.slice(0, commentStart).trimEnd();
       })
@@ -216,7 +224,7 @@ export function stripComments(content: string, extension: string): string {
       // def/class docstrings: triple-quoted string on the line(s) after a def/class colon
       result = result.replace(
         /((?:^|\n)[ \t]*(?:def|class)\b[^\n]*:\s*\n[ \t]*)("""[\s\S]*?"""|'''[\s\S]*?''')/g,
-        "$1"
+        "$1",
       );
     }
 
@@ -252,7 +260,9 @@ export function reduceWhitespace(content: string, extension?: string, filePath?:
     .split("\n")
     .map((line) => {
       const trimmed = line.trimEnd();
-      if (preserveIndentation) return trimmed;
+      if (preserveIndentation) {
+        return trimmed;
+      }
       // Fully left-align in whitespace-insensitive formats to maximize token savings.
       return trimmed.trimStart();
     })
@@ -264,7 +274,7 @@ export function reduceWhitespace(content: string, extension?: string, filePath?:
 export function minifyMarkdown(
   content: string,
   stripHeadings: boolean,
-  stripBlockquotes: boolean
+  stripBlockquotes: boolean,
 ): string {
   let result = content;
 
@@ -277,7 +287,7 @@ export function minifyMarkdown(
   // Strip block HTML tags and their content (handles nested tags better than balanced matching)
   result = result.replace(
     /<(div|details|summary|table|thead|tbody|tr|td|th)[^>]*>[\s\S]*?<\/\1>/gi,
-    ""
+    "",
   );
   // Strip void/self-closing tags
   result = result.replace(/<(img|br|hr)[^>]*\/?>/gi, "");

@@ -20,8 +20,7 @@ Bablusheed is a Tauri + React desktop app that packs repositories into LLM-frien
 - Lets you open a project and select files quickly (`Source`, `Tests`, `Config`, `Docs`, custom filters).
 - Estimates tokens per file and in total for the selected LLM profile.
 - Packs selected files into `N` output packs (`Plain` or `Markdown`).
-- Exports individual packs, or exports all packs in one folder operation.
-- Adds optional prompt scaffolding for easier upload to ChatGPT/Claude/Gemini/etc.
+- Exports all packs in one folder operation.
 
 ## Optimization Features
 

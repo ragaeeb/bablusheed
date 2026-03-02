@@ -31,9 +31,13 @@ interface AstCache {
 }
 
 function areStringMapsEqual(a: Map<string, string>, b: Map<string, string>): boolean {
-  if (a.size !== b.size) return false;
+  if (a.size !== b.size) {
+    return false;
+  }
   for (const [key, value] of a) {
-    if (b.get(key) !== value) return false;
+    if (b.get(key) !== value) {
+      return false;
+    }
   }
   return true;
 }
@@ -45,7 +49,8 @@ export function useTokenCount(
   packOptions: PackOptions,
   debugEnabled = false,
   onDebugLog?: (line: string) => void,
-  onDebugMetric?: (name: "astRecompute" | "astCacheHit" | "workerQueued" | "workerResult") => void
+  onDebugMetric?: (name: "astRecompute" | "astCacheHit" | "workerQueued" | "workerResult") => void,
+  onEventLog?: (level: "error" | "info" | "debug", message: string) => void,
 ) {
   const [tokenMap, setTokenMap] = useState<Map<string, number>>(new Map());
   const [isCalculating, setIsCalculating] = useState(false);
@@ -64,6 +69,7 @@ export function useTokenCount(
   const debugEnabledRef = useRef(debugEnabled);
   const debugLogRef = useRef<((line: string) => void) | null>(onDebugLog ?? null);
   const onDebugMetricRef = useRef(onDebugMetric);
+  const onEventLogRef = useRef(onEventLog);
 
   useEffect(() => {
     tokenMapRef.current = tokenMap;
@@ -81,8 +87,14 @@ export function useTokenCount(
     onDebugMetricRef.current = onDebugMetric;
   }, [onDebugMetric]);
 
+  useEffect(() => {
+    onEventLogRef.current = onEventLog;
+  }, [onEventLog]);
+
   const logDebug = useCallback((message: string) => {
-    if (!debugEnabledRef.current) return;
+    if (!debugEnabledRef.current) {
+      return;
+    }
     debugLogRef.current?.(`[${new Date().toISOString()}] ${message}`);
   }, []);
 
@@ -100,8 +112,15 @@ export function useTokenCount(
       type: "module",
     });
 
+    workerRef.current.onerror = (event) => {
+      const message = event.message || "unknown worker error";
+      onEventLogRef.current?.("error", `token-count worker error err=${message}`);
+    };
+
     workerRef.current.onmessage = (event: MessageEvent<WorkerResult>) => {
-      if (event.data.type !== "result") return;
+      if (event.data.type !== "result") {
+        return;
+      }
 
       const { requestId, results } = event.data;
       const latestRequestId = latestRequestIdRef.current;
@@ -123,9 +142,13 @@ export function useTokenCount(
         const before = prevTokens.get(path) ?? 0;
         const delta = tokens - before;
         deltaTotal += delta;
-        if (delta > 0) increased += 1;
-        else if (delta < 0) decreased += 1;
-        else unchanged += 1;
+        if (delta > 0) {
+          increased += 1;
+        } else if (delta < 0) {
+          decreased += 1;
+        } else {
+          unchanged += 1;
+        }
       }
 
       setTokenMap((prev) => {
@@ -143,13 +166,15 @@ export function useTokenCount(
       logDebug(
         `token-count result request=${requestId} files=${results.length} ` +
           `deltaTokens=${deltaTotal} increased=${increased} decreased=${decreased} unchanged=${unchanged} ` +
-          `charDelta=${charDelta} elapsedMs=${elapsedMs}`
+          `charDelta=${charDelta} elapsedMs=${elapsedMs}`,
       );
       onDebugMetricRef.current?.("workerResult");
     };
 
     return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
+      }
       workerRef.current?.terminate();
     };
   }, [logDebug]);
@@ -158,160 +183,203 @@ export function useTokenCount(
     let cancelled = false;
 
     const runCount = async () => {
-      logDebug(
-        `token-count run start selected=${selectedFilesRef.current.length} tokenizer=${llmProfile.tokenizer} ast=${packOptions.astDeadCode && !!packOptions.entryPoint}`
-      );
+      try {
+        logDebug(
+          `token-count run start selected=${selectedFilesRef.current.length} tokenizer=${llmProfile.tokenizer} ast=${packOptions.astDeadCode && !!packOptions.entryPoint}`,
+        );
 
-      const rawContents = new Map<string, string>();
-      for (const file of selectedFilesRef.current) {
-        const rawContent = fileContents.get(file.path);
-        if (rawContent === undefined || rawContent === null) continue;
-        rawContents.set(file.path, rawContent);
-      }
-
-      let astProcessedContents = rawContents;
-      if (packOptions.astDeadCode && packOptions.entryPoint) {
-        const cached = astCacheRef.current;
-        if (
-          cached &&
-          cached.entryPoint === packOptions.entryPoint &&
-          cached.selectedIdentityKey === selectedIdentityKey &&
-          areStringMapsEqual(cached.rawContents, rawContents)
-        ) {
-          astProcessedContents = cached.result;
-          logDebug(`token-count ast cache hit files=${rawContents.size}`);
-          onDebugMetricRef.current?.("astCacheHit");
-        } else {
-          astProcessedContents = await applyAstDeadCode(
-            selectedFilesRef.current,
-            rawContents,
-            packOptions.entryPoint
-          );
-          if (cancelled) return;
-          astCacheRef.current = {
-            entryPoint: packOptions.entryPoint,
-            selectedIdentityKey,
-            rawContents: new Map(rawContents),
-            result: new Map(astProcessedContents),
-          };
-          logDebug(`token-count ast recompute files=${rawContents.size}`);
-          onDebugMetricRef.current?.("astRecompute");
-        }
-      } else if (astCacheRef.current) {
-        astCacheRef.current = null;
-      }
-
-      if (cancelled) return;
-
-      const countedContents = new Map<string, string>();
-      for (const file of selectedFilesRef.current) {
-        const baseContent = astProcessedContents.get(file.path);
-        if (baseContent === undefined || baseContent === null) continue;
-
-        let content = baseContent;
-        const ext = file.extension.toLowerCase();
-        if (packOptions.stripComments) {
-          content = stripComments(content, ext);
-        }
-        if (packOptions.reduceWhitespace) {
-          content = reduceWhitespace(content, ext, file.relativePath);
-        }
-        if (packOptions.minifyMarkdown && (ext === "md" || ext === "mdx")) {
-          content = minifyMarkdown(
-            content,
-            packOptions.stripMarkdownHeadings,
-            packOptions.stripMarkdownBlockquotes
-          );
-        }
-        countedContents.set(file.path, content);
-      }
-
-      const tokenizerChanged = lastTokenizerRef.current !== llmProfile.tokenizer;
-      const optimizationKey = [
-        packOptions.stripComments,
-        packOptions.reduceWhitespace,
-        packOptions.minifyMarkdown,
-        packOptions.stripMarkdownHeadings,
-        packOptions.stripMarkdownBlockquotes,
-        packOptions.astDeadCode,
-        packOptions.entryPoint ?? "",
-      ].join("|");
-      const optimizationChanged = lastOptimizationKeyRef.current !== optimizationKey;
-
-      if (tokenizerChanged || optimizationChanged) {
-        contentHashMapRef.current.clear();
-        lastTokenizerRef.current = llmProfile.tokenizer;
-        lastOptimizationKeyRef.current = optimizationKey;
-      }
-
-      const newPending = new Map<string, string>();
-      for (const [path, content] of countedContents) {
-        const lastContent = contentHashMapRef.current.get(path);
-        if (lastContent !== content) {
-          newPending.set(path, content);
-          contentHashMapRef.current.set(path, content);
-        }
-      }
-
-      for (const key of contentHashMapRef.current.keys()) {
-        if (!countedContents.has(key)) {
-          contentHashMapRef.current.delete(key);
-        }
-      }
-
-      if (newPending.size === 0) return;
-
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-      debounceRef.current = setTimeout(() => {
-        if (cancelled) return;
-        const files = Array.from(newPending.entries()).map(([path, content]) => ({
-          path,
-          content,
-        }));
-        if (files.length === 0) return;
-
-        const requestId = ++requestCounterRef.current;
-        latestRequestIdRef.current = requestId;
-
-        let rawChars = 0;
-        let optimizedChars = 0;
-        const prevTokens = new Map<string, number>();
-
-        for (const [path, content] of newPending) {
-          const raw = fileContents.get(path) ?? "";
-          rawChars += raw.length;
-          optimizedChars += content.length;
-          prevTokens.set(path, tokenMapRef.current.get(path) ?? 0);
+        if (selectedFilesRef.current.length === 0) {
+          if (debounceRef.current) {
+            clearTimeout(debounceRef.current);
+            debounceRef.current = null;
+          }
+          contentHashMapRef.current.clear();
+          requestMetaRef.current.clear();
+          astCacheRef.current = null;
+          setIsCalculating(false);
+          setTokenMap((prev) => {
+            if (prev.size === 0) {
+              return prev;
+            }
+            const next = new Map<string, number>();
+            tokenMapRef.current = next;
+            return next;
+          });
+          logDebug("token-count reset: empty selection");
+          return;
         }
 
-        requestMetaRef.current.set(requestId, {
-          sentAtMs: Date.now(),
-          fileCount: files.length,
-          rawChars,
-          optimizedChars,
-          prevTokens,
-        });
+        const rawContents = new Map<string, string>();
+        for (const file of selectedFilesRef.current) {
+          const rawContent = fileContents.get(file.path);
+          if (rawContent === undefined || rawContent === null) {
+            continue;
+          }
+          rawContents.set(file.path, rawContent);
+        }
 
-        // Keep request metadata map bounded.
-        const pruneBefore = requestId - 20;
-        for (const key of requestMetaRef.current.keys()) {
-          if (key < pruneBefore) {
-            requestMetaRef.current.delete(key);
+        let astProcessedContents = rawContents;
+        if (packOptions.astDeadCode && packOptions.entryPoint) {
+          const cached = astCacheRef.current;
+          if (
+            cached &&
+            cached.entryPoint === packOptions.entryPoint &&
+            cached.selectedIdentityKey === selectedIdentityKey &&
+            areStringMapsEqual(cached.rawContents, rawContents)
+          ) {
+            astProcessedContents = cached.result;
+            logDebug(`token-count ast cache hit files=${rawContents.size}`);
+            onDebugMetricRef.current?.("astCacheHit");
+          } else {
+            astProcessedContents = await applyAstDeadCode(
+              selectedFilesRef.current,
+              rawContents,
+              packOptions.entryPoint,
+            );
+            if (cancelled) {
+              return;
+            }
+            astCacheRef.current = {
+              entryPoint: packOptions.entryPoint,
+              rawContents: new Map(rawContents),
+              result: new Map(astProcessedContents),
+              selectedIdentityKey,
+            };
+            logDebug(`token-count ast recompute files=${rawContents.size}`);
+            onDebugMetricRef.current?.("astRecompute");
+          }
+        } else if (astCacheRef.current) {
+          astCacheRef.current = null;
+        }
+
+        if (cancelled) {
+          return;
+        }
+
+        const countedContents = new Map<string, string>();
+        for (const file of selectedFilesRef.current) {
+          const baseContent = astProcessedContents.get(file.path);
+          if (baseContent === undefined || baseContent === null) {
+            continue;
+          }
+
+          let content = baseContent;
+          const ext = file.extension.toLowerCase();
+          if (packOptions.stripComments) {
+            content = stripComments(content, ext);
+          }
+          if (packOptions.reduceWhitespace) {
+            content = reduceWhitespace(content, ext, file.relativePath);
+          }
+          if (packOptions.minifyMarkdown && (ext === "md" || ext === "mdx")) {
+            content = minifyMarkdown(
+              content,
+              packOptions.stripMarkdownHeadings,
+              packOptions.stripMarkdownBlockquotes,
+            );
+          }
+          countedContents.set(file.path, content);
+        }
+
+        const tokenizerChanged = lastTokenizerRef.current !== llmProfile.tokenizer;
+        const optimizationKey = [
+          packOptions.stripComments,
+          packOptions.reduceWhitespace,
+          packOptions.minifyMarkdown,
+          packOptions.stripMarkdownHeadings,
+          packOptions.stripMarkdownBlockquotes,
+          packOptions.astDeadCode,
+          packOptions.entryPoint ?? "",
+        ].join("|");
+        const optimizationChanged = lastOptimizationKeyRef.current !== optimizationKey;
+
+        if (tokenizerChanged || optimizationChanged) {
+          contentHashMapRef.current.clear();
+          lastTokenizerRef.current = llmProfile.tokenizer;
+          lastOptimizationKeyRef.current = optimizationKey;
+        }
+
+        const newPending = new Map<string, string>();
+        for (const [path, content] of countedContents) {
+          const lastContent = contentHashMapRef.current.get(path);
+          if (lastContent !== content) {
+            newPending.set(path, content);
+            contentHashMapRef.current.set(path, content);
           }
         }
 
-        setIsCalculating(true);
-        const strategy = getTokenizerEncoding(llmProfile.tokenizer);
-        const message: WorkerMessage = { type: "count", requestId, files, strategy };
-        workerRef.current?.postMessage(message);
-        onDebugMetricRef.current?.("workerQueued");
+        for (const key of contentHashMapRef.current.keys()) {
+          if (!countedContents.has(key)) {
+            contentHashMapRef.current.delete(key);
+          }
+        }
 
-        logDebug(
-          `token-count queued request=${requestId} files=${files.length} ` +
-            `rawChars=${rawChars} optimizedChars=${optimizedChars} charDelta=${optimizedChars - rawChars} ` +
-            `tokenizer=${llmProfile.tokenizer}`
-        );
-      }, 150);
+        if (newPending.size === 0) {
+          return;
+        }
+
+        if (debounceRef.current) {
+          clearTimeout(debounceRef.current);
+        }
+        debounceRef.current = setTimeout(() => {
+          if (cancelled) {
+            return;
+          }
+          const files = Array.from(newPending.entries()).map(([path, content]) => ({
+            content,
+            path,
+          }));
+          if (files.length === 0) {
+            return;
+          }
+
+          const requestId = ++requestCounterRef.current;
+          latestRequestIdRef.current = requestId;
+
+          let rawChars = 0;
+          let optimizedChars = 0;
+          const prevTokens = new Map<string, number>();
+
+          for (const [path, content] of newPending) {
+            const raw = fileContents.get(path) ?? "";
+            rawChars += raw.length;
+            optimizedChars += content.length;
+            prevTokens.set(path, tokenMapRef.current.get(path) ?? 0);
+          }
+
+          requestMetaRef.current.set(requestId, {
+            fileCount: files.length,
+            optimizedChars,
+            prevTokens,
+            rawChars,
+            sentAtMs: Date.now(),
+          });
+
+          // Keep request metadata map bounded.
+          const pruneBefore = requestId - 20;
+          for (const key of requestMetaRef.current.keys()) {
+            if (key < pruneBefore) {
+              requestMetaRef.current.delete(key);
+            }
+          }
+
+          setIsCalculating(true);
+          const strategy = getTokenizerEncoding(llmProfile.tokenizer);
+          const message: WorkerMessage = { files, requestId, strategy, type: "count" };
+          workerRef.current?.postMessage(message);
+          onDebugMetricRef.current?.("workerQueued");
+
+          logDebug(
+            `token-count queued request=${requestId} files=${files.length} ` +
+              `rawChars=${rawChars} optimizedChars=${optimizedChars} charDelta=${optimizedChars - rawChars} ` +
+              `tokenizer=${llmProfile.tokenizer}`,
+          );
+        }, 150);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        onEventLogRef.current?.("error", `token-count run failed err=${message}`);
+        setIsCalculating(false);
+      }
     };
 
     void runCount();
@@ -338,5 +406,5 @@ export function useTokenCount(
 
   const selectedTokens = selectedFiles.reduce((sum, f) => sum + (tokenMap.get(f.path) ?? 0), 0);
 
-  return { tokenMap, totalTokens: selectedTokens, isCalculating };
+  return { isCalculating, tokenMap, totalTokens: selectedTokens };
 }

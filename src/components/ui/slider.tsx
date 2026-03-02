@@ -18,7 +18,7 @@ interface SliderProps
   disabled?: boolean;
   onValueChange?: (
     value: number[],
-    details: Parameters<NonNullable<SliderRootProps["onValueChange"]>>[1]
+    details: Parameters<NonNullable<SliderRootProps["onValueChange"]>>[1],
   ) => void;
 }
 
@@ -35,7 +35,7 @@ const Slider = React.forwardRef<HTMLDivElement, SliderProps>(
       onValueChange,
       ...rootProps
     },
-    ref
+    ref,
   ) => {
     const thumbCount = Math.max(value?.length ?? defaultValue?.length ?? 1, 1);
 
@@ -68,7 +68,7 @@ const Slider = React.forwardRef<HTMLDivElement, SliderProps>(
         </SliderPrimitive.Control>
       </SliderPrimitive.Root>
     );
-  }
+  },
 );
 Slider.displayName = "Slider";
 

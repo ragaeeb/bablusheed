@@ -20,7 +20,9 @@ export function TopHeavyFiles({ selectedFiles, tokenMap, onFileClick }: TopHeavy
 
   const maxTokens = filesWithTokens[0]?.tokens ?? 1;
 
-  if (filesWithTokens.length === 0) return null;
+  if (filesWithTokens.length === 0) {
+    return null;
+  }
 
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>
@@ -60,7 +62,7 @@ export function TopHeavyFiles({ selectedFiles, tokenMap, onFileClick }: TopHeavy
                 <span
                   className={cn(
                     "text-[11px] font-mono truncate flex-1 group-hover:text-foreground transition-colors",
-                    textColor
+                    textColor,
                   )}
                   title={file.relativePath}
                 >

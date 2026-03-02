@@ -1,17 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
-import { dirname, join } from "@tauri-apps/api/path";
-import { writeText } from "@tauri-apps/plugin-clipboard-manager";
-import { open, save } from "@tauri-apps/plugin-dialog";
-import {
-  Check,
-  ChevronDown,
-  ChevronRight,
-  Copy,
-  Download,
-  FileText,
-  Package,
-  X,
-} from "lucide-react";
+import { join } from "@tauri-apps/api/path";
+import { open } from "@tauri-apps/plugin-dialog";
+import { ChevronDown, ChevronRight, FileText, Package, X } from "lucide-react";
 import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { buildPackFileTokenMap } from "@/lib/output-preview";
@@ -25,19 +15,10 @@ interface OutputPreviewProps {
   tokenMap?: Map<string, number>;
   debugLogging?: boolean;
   onDebugLog?: (line: string) => void;
+  onEventLog?: (level: "error" | "info" | "debug", message: string) => void;
   onRenderSample?: (component: string, timestampMs: number) => void;
   onClose: () => void;
 }
-
-const DEFAULT_PROMPT = `You are reading a multi-file project pack.
-
-Instructions:
-- Each embedded file starts with a path marker like "// path/to/file.ext".
-- Use those markers to identify file boundaries and references.
-- Read packs in order (Pack 1, then Pack 2, ...).
-- If a file appears with ".part-N-of-M", treat parts as one continuous file in part order.
-- Cite exact file paths when referencing code in your answer.
-`;
 
 function PackManifest({
   filePaths,
@@ -71,134 +52,19 @@ function PackManifest({
 
 function PackContent({
   content,
-  packIndex,
-  totalPacks,
-  prompt,
   filePaths,
   tokenMap,
   packTokens,
 }: {
   content: string;
-  packIndex: number;
-  totalPacks: number;
-  prompt: string;
   filePaths: string[];
   tokenMap: Map<string, number>;
   packTokens: number;
 }) {
-  const [copied, setCopied] = useState(false);
-  const [copiedWithPrompt, setCopiedWithPrompt] = useState(false);
-  const [saved, setSaved] = useState(false);
-
-  const handleCopy = async (withPrompt: boolean) => {
-    try {
-      const text = withPrompt && prompt ? `${prompt}\n\n---\n\n${content}` : content;
-      await writeText(text);
-      if (withPrompt) {
-        setCopiedWithPrompt(true);
-        setTimeout(() => setCopiedWithPrompt(false), 2000);
-      } else {
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-      }
-    } catch (err) {
-      console.error("Copy failed:", err);
-    }
-  };
-
-  const handleSave = async () => {
-    try {
-      const path = await save({
-        defaultPath: `bablusheed_pack_${packIndex + 1}_of_${totalPacks}.txt`,
-        filters: [{ name: "Text Files", extensions: ["txt"] }],
-      });
-      if (path) {
-        const exportDir = await dirname(path);
-        await invoke("authorize_export_directory", { path: exportDir });
-        await invoke("write_file_content", { path, content });
-        setSaved(true);
-        setTimeout(() => setSaved(false), 2000);
-      }
-    } catch (err) {
-      console.error("Save failed:", err);
-    }
-  };
-
   return (
     <div className="relative flex flex-col h-full">
       {/* Pack manifest */}
       <PackManifest filePaths={filePaths} tokenMap={tokenMap} totalTokens={packTokens} />
-
-      {/* Action buttons */}
-      <div className="flex items-center gap-1 mb-2 flex-wrap">
-        <button
-          type="button"
-          onClick={() => handleCopy(false)}
-          className={`inline-flex items-center gap-1 h-6 px-2 text-[11px] font-medium rounded border transition-colors ${
-            copied
-              ? "bg-emerald-50 border-emerald-200 text-emerald-600 dark:bg-emerald-900/20 dark:border-emerald-700 dark:text-emerald-400"
-              : "bg-background border-border text-muted-foreground hover:text-foreground hover:border-primary/50"
-          }`}
-        >
-          {copied ? (
-            <>
-              <Check className="h-3 w-3" />
-              Copied
-            </>
-          ) : (
-            <>
-              <Copy className="h-3 w-3" />
-              Copy Pack
-            </>
-          )}
-        </button>
-
-        {prompt && (
-          <button
-            type="button"
-            onClick={() => handleCopy(true)}
-            className={`inline-flex items-center gap-1 h-6 px-2 text-[11px] font-medium rounded border transition-colors ${
-              copiedWithPrompt
-                ? "bg-emerald-50 border-emerald-200 text-emerald-600 dark:bg-emerald-900/20 dark:border-emerald-700 dark:text-emerald-400"
-                : "bg-primary/10 border-primary/30 text-primary hover:bg-primary/20"
-            }`}
-          >
-            {copiedWithPrompt ? (
-              <>
-                <Check className="h-3 w-3" />
-                Copied!
-              </>
-            ) : (
-              <>
-                <Copy className="h-3 w-3" />
-                Copy + Prompt
-              </>
-            )}
-          </button>
-        )}
-
-        <button
-          type="button"
-          onClick={handleSave}
-          className={`inline-flex items-center gap-1 h-6 px-2 text-[11px] font-medium rounded border transition-colors ${
-            saved
-              ? "bg-emerald-50 border-emerald-200 text-emerald-600 dark:bg-emerald-900/20 dark:border-emerald-700 dark:text-emerald-400"
-              : "bg-background border-border text-muted-foreground hover:text-foreground hover:border-primary/50"
-          }`}
-        >
-          {saved ? (
-            <>
-              <Check className="h-3 w-3" />
-              Saved
-            </>
-          ) : (
-            <>
-              <Download className="h-3 w-3" />
-              Save
-            </>
-          )}
-        </button>
-      </div>
       <pre className="flex-1 text-[11px] font-mono bg-muted/30 border border-border rounded overflow-auto whitespace-pre-wrap break-all leading-relaxed p-3 text-foreground/80">
         {content}
       </pre>
@@ -211,6 +77,7 @@ export function OutputPreview({
   tokenMap,
   debugLogging = false,
   onDebugLog,
+  onEventLog,
   onRenderSample,
   onClose,
 }: OutputPreviewProps) {
@@ -223,7 +90,6 @@ export function OutputPreview({
     windowMs: 3000,
   });
 
-  const [prompt, setPrompt] = useState(DEFAULT_PROMPT);
   const [showHowTo, setShowHowTo] = useState(false);
   const [exportingAll, setExportingAll] = useState(false);
 
@@ -231,22 +97,30 @@ export function OutputPreview({
 
   const handleExportAll = async () => {
     setExportingAll(true);
+    onEventLog?.("info", `export-all start packs=${packResult.packs.length}`);
     try {
       const folder = await open({
         directory: true,
         multiple: false,
         title: "Select folder for exported packs",
       });
-      if (!folder || typeof folder !== "string") return;
+      if (!folder || typeof folder !== "string") {
+        onEventLog?.("info", "export-all cancelled");
+        return;
+      }
       await invoke("authorize_export_directory", { path: folder });
 
       for (const pack of packResult.packs) {
         const filename = `bablusheed_pack_${pack.index + 1}_of_${packResult.packs.length}.txt`;
         const path = await join(folder, filename);
-        await invoke("write_file_content", { path, content: pack.content });
+        onEventLog?.("debug", `export-all write start path=${path}`);
+        await invoke("write_file_content", { content: pack.content, path });
+        onEventLog?.("debug", `export-all write success path=${path}`);
       }
+      onEventLog?.("info", `export-all success packs=${packResult.packs.length} dir=${folder}`);
     } catch (err) {
       console.error("Export all failed:", err);
+      onEventLog?.("error", `export-all failed err=${String(err)}`);
     } finally {
       setExportingAll(false);
     }
@@ -263,18 +137,20 @@ export function OutputPreview({
           </span>
         </div>
         <div className="flex items-center gap-1">
-          {packResult.packs.length > 1 && (
-            <button
-              type="button"
-              onClick={handleExportAll}
-              disabled={exportingAll}
-              className="inline-flex items-center gap-1 h-6 px-2 text-[11px] font-medium rounded border border-border bg-background text-muted-foreground hover:text-foreground hover:border-primary/50 transition-colors disabled:opacity-50"
-              title="Export all packs as .txt files"
-            >
-              <Package className="h-3 w-3" />
-              {exportingAll ? "Exporting..." : "Export All"}
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={handleExportAll}
+            disabled={exportingAll}
+            className="inline-flex items-center gap-1 h-6 px-2 text-[11px] font-medium rounded border border-border bg-background text-muted-foreground hover:text-foreground hover:border-primary/50 transition-colors disabled:opacity-50"
+            title={
+              packResult.packs.length > 1
+                ? "Export all packs as .txt files"
+                : "Export pack as .txt file"
+            }
+          >
+            <Package className="h-3 w-3" />
+            {exportingAll ? "Exporting..." : packResult.packs.length > 1 ? "Export All" : "Export"}
+          </button>
           <button
             type="button"
             onClick={onClose}
@@ -283,23 +159,6 @@ export function OutputPreview({
             <X className="h-3 w-3" />
           </button>
         </div>
-      </div>
-
-      {/* Prompt Builder */}
-      <div className="shrink-0 px-3 pt-2 pb-1 border-b border-border">
-        <label
-          htmlFor="prompt-builder"
-          className="block text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-1"
-        >
-          Prompt (prepended to Pack 1 when copying)
-        </label>
-        <textarea
-          id="prompt-builder"
-          value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
-          placeholder="e.g. Please review this code for security vulnerabilities..."
-          className="w-full h-14 text-[11px] font-mono bg-muted/40 border border-border rounded px-2 py-1.5 resize-none focus:outline-none focus:ring-1 focus:ring-ring focus:bg-background placeholder:text-muted-foreground/40"
-        />
       </div>
 
       {/* Content */}
@@ -330,9 +189,6 @@ export function OutputPreview({
               <div className="flex-1 overflow-hidden flex flex-col">
                 <PackContent
                   content={pack.content}
-                  packIndex={pack.index}
-                  totalPacks={packResult.packs.length}
-                  prompt={pack.index === 0 ? prompt : ""}
                   filePaths={pack.filePaths}
                   tokenMap={fileTokenMap}
                   packTokens={pack.estimatedTokens}
@@ -359,7 +215,6 @@ export function OutputPreview({
             <li>Attach Pack 1 as a file (drag the .txt file or use the paperclip icon).</li>
             <li>If you have multiple packs, attach them all before sending.</li>
             <li>Paste your prompt and send.</li>
-            <li>Use "Copy + Prompt" to copy Pack 1 with your prompt already prepended.</li>
           </ol>
         )}
       </div>

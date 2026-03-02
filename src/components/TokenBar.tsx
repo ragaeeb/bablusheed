@@ -58,8 +58,8 @@ export function TokenBar({
       // Rough estimate: comments are ~15% of code
       const savings = Math.round(usedTokens * 0.15);
       suggestions.push({
-        label: `Strip Comments saves ~${formatTokenCount(savings)}`,
         action: () => onApplyOptimization({ stripComments: true }),
+        label: `Strip Comments saves ~${formatTokenCount(savings)}`,
       });
     }
 
@@ -71,8 +71,8 @@ export function TokenBar({
       if (mdTokens > 0) {
         const savings = Math.round(mdTokens * 0.3);
         suggestions.push({
-          label: `Minify Markdown saves ~${formatTokenCount(savings)}`,
           action: () => onApplyOptimization({ minifyMarkdown: true }),
+          label: `Minify Markdown saves ~${formatTokenCount(savings)}`,
         });
       }
     }
@@ -80,13 +80,13 @@ export function TokenBar({
     // Suggestion: Deselect 2 heaviest files
     if (onDeselectHeaviest && selectedFilePaths.length >= 2) {
       const sorted = [...selectedFilePaths].sort(
-        (a, b) => (tokenMap.get(b) ?? 0) - (tokenMap.get(a) ?? 0)
+        (a, b) => (tokenMap.get(b) ?? 0) - (tokenMap.get(a) ?? 0),
       );
       const top2Tokens = (tokenMap.get(sorted[0]) ?? 0) + (tokenMap.get(sorted[1]) ?? 0);
       if (top2Tokens > 0) {
         suggestions.push({
-          label: `Deselect 2 heaviest files saves ~${formatTokenCount(top2Tokens)}`,
           action: () => onDeselectHeaviest(2),
+          label: `Deselect 2 heaviest files saves ~${formatTokenCount(top2Tokens)}`,
         });
       }
     }
@@ -110,7 +110,7 @@ export function TokenBar({
                 ? "bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400"
                 : isWarning
                   ? "bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400"
-                  : "bg-muted text-muted-foreground"
+                  : "bg-muted text-muted-foreground",
             )}
           >
             {percentage.toFixed(0)}%
@@ -127,7 +127,7 @@ export function TokenBar({
           className={cn(
             "h-full rounded-full transition-all duration-300",
             barColor,
-            percentage >= 60 && "bg-linear-to-r from-emerald-500 via-yellow-400 to-red-500"
+            percentage >= 60 && "bg-linear-to-r from-emerald-500 via-yellow-400 to-red-500",
           )}
           style={{ width: `${percentage}%` }}
         />
@@ -141,7 +141,7 @@ export function TokenBar({
               ? "border-red-400/40 bg-red-500/10 text-red-700 dark:text-red-300"
               : perPackStatus.level === "warn"
                 ? "border-amber-400/40 bg-amber-500/10 text-amber-700 dark:text-amber-300"
-                : "border-emerald-400/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+                : "border-emerald-400/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
           )}
         >
           <div className="flex items-center justify-between gap-2">
