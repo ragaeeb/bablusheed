@@ -34,13 +34,19 @@ const MIN_BREAK_SCAN_RATIO = 0.35;
 const ADVISORY_WARN_RATIO = 0.85;
 
 function formatCompactTokenCount(tokens: number): string {
-  if (tokens >= 1_000_000) return `${(tokens / 1_000_000).toFixed(1)}M`;
-  if (tokens >= 1_000) return `${(tokens / 1_000).toFixed(1)}k`;
+  if (tokens >= 1_000_000) {
+    return `${(tokens / 1_000_000).toFixed(1)}M`;
+  }
+  if (tokens >= 1_000) {
+    return `${(tokens / 1_000).toFixed(1)}k`;
+  }
   return tokens.toString();
 }
 
 export function estimateTokens(content: string): number {
-  if (content.length === 0) return 0;
+  if (content.length === 0) {
+    return 0;
+  }
   return Math.max(Math.ceil(content.length / APPROX_CHARS_PER_TOKEN), 1);
 }
 
@@ -51,7 +57,7 @@ export function deriveAdvisoryMaxTokensPerFile(contextWindowTokens: number): num
 
 export function resolveAdvisoryMaxTokensPerFile(
   configuredValue: number | null | undefined,
-  contextWindowTokens: number
+  contextWindowTokens: number,
 ): number {
   if (configuredValue === null || configuredValue === undefined || configuredValue <= 0) {
     return deriveAdvisoryMaxTokensPerFile(contextWindowTokens);
@@ -60,21 +66,27 @@ export function resolveAdvisoryMaxTokensPerFile(
 }
 
 export function getEffectiveTokenCount(file: PackStrategyFile): number {
-  if (file.tokenCount !== undefined) return Math.max(0, file.tokenCount);
+  if (file.tokenCount !== undefined) {
+    return Math.max(0, file.tokenCount);
+  }
   return estimateTokens(file.content);
 }
 
 function getExpectedPartCount(file: PackStrategyFile, maxTokensPerFile: number): number {
   const tokens = getEffectiveTokenCount(file);
-  if (tokens <= maxTokensPerFile) return 1;
+  if (tokens <= maxTokensPerFile) {
+    return 1;
+  }
   return Math.max(2, Math.ceil(tokens / Math.max(1, maxTokensPerFile)));
 }
 
 export function findOversizedFiles(
   files: PackStrategyFile[],
-  maxTokensPerFile: number
+  maxTokensPerFile: number,
 ): OversizedFileInfo[] {
-  if (maxTokensPerFile <= 0) return [];
+  if (maxTokensPerFile <= 0) {
+    return [];
+  }
   return files
     .map((file) => ({
       path: file.path,
@@ -84,9 +96,13 @@ export function findOversizedFiles(
 }
 
 export function splitContentByTokenBudget(content: string, maxTokensPerFile: number): string[] {
-  if (maxTokensPerFile <= 0) return [content];
+  if (maxTokensPerFile <= 0) {
+    return [content];
+  }
   const maxCharsPerChunk = Math.max(1, maxTokensPerFile * APPROX_CHARS_PER_TOKEN);
-  if (content.length <= maxCharsPerChunk) return [content];
+  if (content.length <= maxCharsPerChunk) {
+    return [content];
+  }
 
   const minBreakOffset = Math.floor(maxCharsPerChunk * MIN_BREAK_SCAN_RATIO);
   const chunks: string[] = [];
@@ -128,9 +144,11 @@ function toPartPath(path: string, partIndex: number, partCount: number): string 
 
 export function buildOversizedFilesWarning(
   oversizedFiles: OversizedFileInfo[],
-  maxTokensPerFile: number
+  maxTokensPerFile: number,
 ): string | null {
-  if (oversizedFiles.length === 0) return null;
+  if (oversizedFiles.length === 0) {
+    return null;
+  }
   const examples = oversizedFiles
     .slice(0, 3)
     .map((f) => `${f.path} (~${formatCompactTokenCount(f.tokenCount)})`)
@@ -146,19 +164,19 @@ export function buildOversizedFilesWarning(
 
 export function splitOversizedFilesForPacking(
   files: PackStrategyFile[],
-  maxTokensPerFile: number
+  maxTokensPerFile: number,
 ): PackStrategyResult {
   const advisoryMaxTokensPerFile = Math.max(1, maxTokensPerFile);
   const oversizedFiles = findOversizedFiles(files, advisoryMaxTokensPerFile);
 
   if (oversizedFiles.length === 0) {
     return {
-      files,
-      oversizedFiles,
-      warnings: [],
       advisoryMaxTokensPerFile,
-      splitFileCount: 0,
+      files,
       generatedPartCount: 0,
+      oversizedFiles,
+      splitFileCount: 0,
+      warnings: [],
     };
   }
 
@@ -185,37 +203,41 @@ export function splitOversizedFilesForPacking(
 
     for (let i = 0; i < chunks.length; i++) {
       transformedFiles.push({
-        path: toPartPath(file.path, i, chunks.length),
         content: chunks[i],
+        path: toPartPath(file.path, i, chunks.length),
       });
     }
   }
 
   const warnings: string[] = [];
   const oversizedWarning = buildOversizedFilesWarning(oversizedFiles, advisoryMaxTokensPerFile);
-  if (oversizedWarning) warnings.push(oversizedWarning);
+  if (oversizedWarning) {
+    warnings.push(oversizedWarning);
+  }
   if (splitFileCount > 0) {
     warnings.push(
-      `Auto-balance enabled: split ${splitFileCount} oversized file(s) into ${generatedPartCount} part(s) to better balance pack sizes.`
+      `Auto-balance enabled: split ${splitFileCount} oversized file(s) into ${generatedPartCount} part(s) to better balance pack sizes.`,
     );
   }
 
   return {
-    files: transformedFiles,
-    oversizedFiles,
-    warnings,
     advisoryMaxTokensPerFile,
-    splitFileCount,
+    files: transformedFiles,
     generatedPartCount,
+    oversizedFiles,
+    splitFileCount,
+    warnings,
   };
 }
 
 export function forecastSplitPartCounts(
   files: PackStrategyFile[],
-  maxTokensPerFile: number
+  maxTokensPerFile: number,
 ): Map<string, number> {
   const partCounts = new Map<string, number>();
-  if (maxTokensPerFile <= 0) return partCounts;
+  if (maxTokensPerFile <= 0) {
+    return partCounts;
+  }
 
   for (const file of files) {
     const expected = getExpectedPartCount(file, maxTokensPerFile);
@@ -230,7 +252,7 @@ export function forecastSplitPartCounts(
 export function evaluatePerPackAdvisory(
   totalTokens: number,
   numPacks: number,
-  advisoryMaxTokensPerFile: number
+  advisoryMaxTokensPerFile: number,
 ): PerPackAdvisoryStatus {
   const safePacks = Math.max(1, numPacks);
   const safeAdvisoryMax = Math.max(1, advisoryMaxTokensPerFile);
@@ -238,8 +260,11 @@ export function evaluatePerPackAdvisory(
   const utilization = avgTokensPerPack / safeAdvisoryMax;
 
   let level: PerPackAdvisoryStatus["level"] = "ok";
-  if (utilization >= 1) level = "danger";
-  else if (utilization >= ADVISORY_WARN_RATIO) level = "warn";
+  if (utilization >= 1) {
+    level = "danger";
+  } else if (utilization >= ADVISORY_WARN_RATIO) {
+    level = "warn";
+  }
 
   const message =
     level === "danger"
@@ -249,10 +274,10 @@ export function evaluatePerPackAdvisory(
         : "Within advisory: average tokens per pack are under the recommended per-file budget.";
 
   return {
-    avgTokensPerPack,
     advisoryMaxTokensPerFile: safeAdvisoryMax,
-    utilization,
+    avgTokensPerPack,
     level,
     message,
+    utilization,
   };
 }

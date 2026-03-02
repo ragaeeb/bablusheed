@@ -99,16 +99,16 @@ export function PackOptions({
   const autoAdvisoryMax = deriveAdvisoryMaxTokensPerFile(contextWindowTokens);
   const effectiveAdvisoryMax = resolveAdvisoryMaxTokensPerFile(
     options.maxTokensPerPackFile,
-    contextWindowTokens
+    contextWindowTokens,
   );
 
   // Files eligible as AST entry points
   const astEligibleFiles = selectedFiles.filter(
-    (f) => !f.isDir && AST_SUPPORTED_EXTENSIONS.has(f.extension.toLowerCase())
+    (f) => !f.isDir && AST_SUPPORTED_EXTENSIONS.has(f.extension.toLowerCase()),
   );
   const eligiblePathSet = useMemo(
     () => new Set(astEligibleFiles.map((f) => f.path)),
-    [astEligibleFiles]
+    [astEligibleFiles],
   );
 
   const update = (partial: Partial<PackOptionsType>) => {
@@ -179,7 +179,7 @@ export function PackOptions({
                       "py-1 text-[10px] font-medium rounded border transition-colors cursor-pointer",
                       options.outputFormat === fmt
                         ? "bg-primary text-primary-foreground border-primary shadow-sm"
-                        : "bg-transparent border-border text-muted-foreground hover:border-primary/50 hover:text-foreground"
+                        : "bg-transparent border-border text-muted-foreground hover:border-primary/50 hover:text-foreground",
                     )}
                   >
                     {fmt === "plaintext" ? "Plain" : "Markdown"}

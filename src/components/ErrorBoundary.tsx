@@ -10,10 +10,10 @@ interface ErrorBoundaryProps {
 }
 
 export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  state: ErrorBoundaryState = { hasError: false, error: "" };
+  state: ErrorBoundaryState = { error: "", hasError: false };
 
   static getDerivedStateFromError(err: Error): ErrorBoundaryState {
-    return { hasError: true, error: err.message };
+    return { error: err.message, hasError: true };
   }
 
   componentDidCatch(error: Error, info: ErrorInfo): void {
@@ -32,7 +32,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
             <p className="text-xs text-muted-foreground font-mono break-all">{this.state.error}</p>
             <button
               type="button"
-              onClick={() => this.setState({ hasError: false, error: "" })}
+              onClick={() => this.setState({ error: "", hasError: false })}
               className="inline-flex items-center gap-2 h-8 px-4 text-xs font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
             >
               Retry

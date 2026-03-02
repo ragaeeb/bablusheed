@@ -3,10 +3,10 @@ name = "bablusheed"
 version = "1.0.1"
 description = "Bablusheed - Pack project files for LLM consumption"
 authors = ["Ragaeeb Haq"]
-homepage = "https://bablusheed.com"
+homepage = "https://github.com/ragaeeb/bablusheed"
 repository = "https://github.com/ragaeeb/bablusheed"
 license = "MIT"
-edition = "2021"
+edition = "2024"
 
 [lib]
 name = "bablusheed_lib"
@@ -43,5 +43,4 @@ codegen-units = 1
 strip = true
 panic = "abort"
 incremental = false
-
 

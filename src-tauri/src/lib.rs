@@ -31,8 +31,7 @@ fn configure_macos_menu<R: tauri::Runtime>(app: &tauri::App<R>) -> tauri::Result
         ..Default::default()
     };
 
-    let app_name = app.package_info().name.clone();
-    let app_submenu = SubmenuBuilder::new(app, app_name)
+    let app_submenu = SubmenuBuilder::new(app, "Bablusheed")
         .about(Some(about_metadata))
         .separator()
         .services()

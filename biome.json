@@ -65,7 +65,7 @@
       "style": {
         "useBlockStatements": {
           "fix": "safe",
-          "level": "off",
+          "level": "warn",
           "options": {}
         },
         "useImportType": "error",

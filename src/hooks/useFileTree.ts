@@ -5,17 +5,17 @@ function buildTreeNodes(nodes: FileNode[], depth: number): FileTreeNode[] {
   return nodes.map((node) => ({
     ...node,
     checkState: "unchecked" as CheckState,
-    tokenCount: 0,
+    children: node.children ? buildTreeNodes(node.children, depth + 1) : undefined,
     depth,
     isExpanded: depth < 2,
-    children: node.children ? buildTreeNodes(node.children, depth + 1) : undefined,
+    tokenCount: 0,
   }));
 }
 
 function updateCheckStateInTree(
   nodes: FileTreeNode[],
   targetId: string,
-  newState: "checked" | "unchecked"
+  newState: "checked" | "unchecked",
 ): FileTreeNode[] {
   return nodes.map((node) => {
     if (node.id === targetId) {
@@ -28,7 +28,7 @@ function updateCheckStateInTree(
     if (node.children) {
       const updatedChildren = updateCheckStateInTree(node.children, targetId, newState);
       const childState = computeParentState(updatedChildren);
-      return { ...node, children: updatedChildren, checkState: childState };
+      return { ...node, checkState: childState, children: updatedChildren };
     }
     return node;
   });
@@ -43,11 +43,17 @@ function setAllChildren(nodes: FileTreeNode[], state: "checked" | "unchecked"): 
 }
 
 function computeParentState(children: FileTreeNode[]): CheckState {
-  if (children.length === 0) return "unchecked";
+  if (children.length === 0) {
+    return "unchecked";
+  }
   const allChecked = children.every((c) => c.checkState === "checked");
   const noneChecked = children.every((c) => c.checkState === "unchecked");
-  if (allChecked) return "checked";
-  if (noneChecked) return "unchecked";
+  if (allChecked) {
+    return "checked";
+  }
+  if (noneChecked) {
+    return "unchecked";
+  }
   return "indeterminate";
 }
 
@@ -67,9 +73,9 @@ function flattenTree(nodes: FileTreeNode[]): FlatTreeItem[] {
   const result: FlatTreeItem[] = [];
   for (const node of nodes) {
     result.push({
-      node,
       depth: node.depth,
       hasChildren: Boolean(node.children && node.children.length > 0),
+      node,
     });
     if (node.isExpanded && node.children) {
       result.push(...flattenTree(node.children));
@@ -94,15 +100,15 @@ function getSelectedFiles(nodes: FileTreeNode[]): FileTreeNode[] {
 function updateTokensInTree(nodes: FileTreeNode[], tokenMap: Map<string, number>): FileTreeNode[] {
   return nodes.map((node) => ({
     ...node,
-    tokenCount: tokenMap.get(node.path) ?? node.tokenCount,
     children: node.children ? updateTokensInTree(node.children, tokenMap) : undefined,
+    tokenCount: tokenMap.get(node.path) ?? node.tokenCount,
   }));
 }
 
 function selectAllInTree(
   nodes: FileTreeNode[],
   selected: boolean,
-  filteredPaths?: Set<string>
+  filteredPaths?: Set<string>,
 ): FileTreeNode[] {
   const state: "checked" | "unchecked" = selected ? "checked" : "unchecked";
   return nodes.map((node) => {
@@ -119,7 +125,7 @@ function selectAllInTree(
       if (node.children) {
         const updatedChildren = selectAllInTree(node.children, selected, filteredPaths);
         const childState = computeParentState(updatedChildren);
-        return { ...node, children: updatedChildren, checkState: childState };
+        return { ...node, checkState: childState, children: updatedChildren };
       }
       return node;
     }
@@ -188,10 +194,18 @@ function isTestFile(node: FileTreeNode): boolean {
 }
 
 function isSourceFile(node: FileTreeNode): boolean {
-  if (isTestFile(node)) return false;
-  if (CONFIG_EXTENSIONS.has(node.extension.toLowerCase())) return false;
-  if (CONFIG_NAMES.has(node.name.toLowerCase())) return false;
-  if (DOC_EXTENSIONS.has(node.extension.toLowerCase())) return false;
+  if (isTestFile(node)) {
+    return false;
+  }
+  if (CONFIG_EXTENSIONS.has(node.extension.toLowerCase())) {
+    return false;
+  }
+  if (CONFIG_NAMES.has(node.name.toLowerCase())) {
+    return false;
+  }
+  if (DOC_EXTENSIONS.has(node.extension.toLowerCase())) {
+    return false;
+  }
   return SOURCE_EXTENSIONS.has(node.extension.toLowerCase());
 }
 
@@ -209,7 +223,7 @@ function quickSelectInTree(nodes: FileTreeNode[], filter: QuickFilter): FileTree
     if (node.isDir) {
       const updatedChildren = node.children ? quickSelectInTree(node.children, filter) : undefined;
       const childState = updatedChildren ? computeParentState(updatedChildren) : node.checkState;
-      return { ...node, children: updatedChildren, checkState: childState };
+      return { ...node, checkState: childState, children: updatedChildren };
     }
 
     if (filter === "clear") {
@@ -265,10 +279,14 @@ export function useFileTree() {
     setRootNodes((prev) => {
       const findNode = (nodes: FileTreeNode[]): FileTreeNode | undefined => {
         for (const n of nodes) {
-          if (n.id === nodeId) return n;
+          if (n.id === nodeId) {
+            return n;
+          }
           if (n.children) {
             const found = findNode(n.children);
-            if (found) return found;
+            if (found) {
+              return found;
+            }
           }
         }
         return undefined;
@@ -309,19 +327,19 @@ export function useFileTree() {
   }
 
   return {
-    rootNodes,
     flatItems,
-    selectedFiles,
-    searchQuery,
     highlightedPath,
-    visibleFilePaths,
     loadTree,
+    quickSelect,
+    rootNodes,
+    searchQuery,
+    selectAll,
+    selectedFiles,
+    setHighlightedPath,
+    setSearchQuery,
     toggleCheck,
     toggleExpand,
     updateTokens,
-    selectAll,
-    quickSelect,
-    setSearchQuery,
-    setHighlightedPath,
+    visibleFilePaths,
   };
 }

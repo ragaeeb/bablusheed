@@ -15,6 +15,7 @@ interface OutputPreviewProps {
   tokenMap?: Map<string, number>;
   debugLogging?: boolean;
   onDebugLog?: (line: string) => void;
+  onEventLog?: (level: "error" | "info" | "debug", message: string) => void;
   onRenderSample?: (component: string, timestampMs: number) => void;
   onClose: () => void;
 }
@@ -76,6 +77,7 @@ export function OutputPreview({
   tokenMap,
   debugLogging = false,
   onDebugLog,
+  onEventLog,
   onRenderSample,
   onClose,
 }: OutputPreviewProps) {
@@ -95,22 +97,30 @@ export function OutputPreview({
 
   const handleExportAll = async () => {
     setExportingAll(true);
+    onEventLog?.("info", `export-all start packs=${packResult.packs.length}`);
     try {
       const folder = await open({
         directory: true,
         multiple: false,
         title: "Select folder for exported packs",
       });
-      if (!folder || typeof folder !== "string") return;
+      if (!folder || typeof folder !== "string") {
+        onEventLog?.("info", "export-all cancelled");
+        return;
+      }
       await invoke("authorize_export_directory", { path: folder });
 
       for (const pack of packResult.packs) {
         const filename = `bablusheed_pack_${pack.index + 1}_of_${packResult.packs.length}.txt`;
         const path = await join(folder, filename);
-        await invoke("write_file_content", { path, content: pack.content });
+        onEventLog?.("debug", `export-all write start path=${path}`);
+        await invoke("write_file_content", { content: pack.content, path });
+        onEventLog?.("debug", `export-all write success path=${path}`);
       }
+      onEventLog?.("info", `export-all success packs=${packResult.packs.length} dir=${folder}`);
     } catch (err) {
       console.error("Export all failed:", err);
+      onEventLog?.("error", `export-all failed err=${String(err)}`);
     } finally {
       setExportingAll(false);
     }

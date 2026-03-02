@@ -174,6 +174,14 @@ describe("stripComments", () => {
       expect(result).toContain("b;");
       expect(result).not.toContain("outer");
     });
+
+    it("should keep comment markers inside quoted strings", () => {
+      const input = `const a = 'http://example.com';\nconst b = "https://example.com/path"; // real`;
+      const result = stripComments(input, "ts");
+      expect(result).toContain("http://example.com");
+      expect(result).toContain("https://example.com/path");
+      expect(result).not.toContain("real");
+    });
   });
 
   describe("hash-comment languages", () => {
@@ -255,6 +263,21 @@ describe("stripComments", () => {
       const result = stripComments("local x = 1 -- comment", "lua");
       expect(result).not.toContain("-- comment");
       expect(result).toContain("local x = 1");
+    });
+
+    it("should keep -- inside SQL single-quoted strings with escaped quotes", () => {
+      const input = "SELECT 'it''s -- text' AS t; -- real comment\nSELECT 1;";
+      const result = stripComments(input, "sql");
+      expect(result).toContain("'it''s -- text'");
+      expect(result).toContain("SELECT 1;");
+      expect(result).not.toContain("real comment");
+    });
+
+    it("should keep -- inside SQL double-quoted strings", () => {
+      const input = 'SELECT "col--name" FROM t; -- trailing comment';
+      const result = stripComments(input, "sql");
+      expect(result).toContain('"col--name"');
+      expect(result).not.toContain("trailing comment");
     });
   });
 

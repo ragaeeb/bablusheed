@@ -8,7 +8,7 @@ const SelectGroup = SelectPrimitive.Group;
 const SelectValue = SelectPrimitive.Value;
 
 const SelectTrigger = React.forwardRef<
-  React.ElementRef<typeof SelectPrimitive.Trigger>,
+  React.ComponentRef<typeof SelectPrimitive.Trigger>,
   React.ComponentPropsWithoutRef<typeof SelectPrimitive.Trigger>
 >(({ className, children, ...props }, ref) => (
   <SelectPrimitive.Trigger
@@ -16,7 +16,7 @@ const SelectTrigger = React.forwardRef<
     data-slot="select-trigger"
     className={cn(
       "flex h-7 w-full items-center justify-between whitespace-nowrap rounded-md border border-input bg-background px-2.5 py-1 text-xs shadow-none ring-offset-background data-[placeholder]:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1 hover:border-primary/50 transition-colors",
-      className
+      className,
     )}
     {...props}
   >
@@ -29,7 +29,7 @@ const SelectTrigger = React.forwardRef<
 SelectTrigger.displayName = "SelectTrigger";
 
 const SelectScrollUpButton = React.forwardRef<
-  React.ElementRef<typeof SelectPrimitive.ScrollUpArrow>,
+  React.ComponentRef<typeof SelectPrimitive.ScrollUpArrow>,
   React.ComponentPropsWithoutRef<typeof SelectPrimitive.ScrollUpArrow>
 >(({ className, ...props }, ref) => (
   <SelectPrimitive.ScrollUpArrow
@@ -43,7 +43,7 @@ const SelectScrollUpButton = React.forwardRef<
 SelectScrollUpButton.displayName = "SelectScrollUpButton";
 
 const SelectScrollDownButton = React.forwardRef<
-  React.ElementRef<typeof SelectPrimitive.ScrollDownArrow>,
+  React.ComponentRef<typeof SelectPrimitive.ScrollDownArrow>,
   React.ComponentPropsWithoutRef<typeof SelectPrimitive.ScrollDownArrow>
 >(({ className, ...props }, ref) => (
   <SelectPrimitive.ScrollDownArrow
@@ -63,7 +63,7 @@ interface SelectContentProps extends React.ComponentPropsWithoutRef<typeof Selec
 }
 
 const SelectContent = React.forwardRef<
-  React.ElementRef<typeof SelectPrimitive.Popup>,
+  React.ComponentRef<typeof SelectPrimitive.Popup>,
   SelectContentProps
 >(({ className, children, position = "popper", sideOffset = 4, ...props }, ref) => (
   <SelectPrimitive.Portal>
@@ -78,7 +78,7 @@ const SelectContent = React.forwardRef<
         className={cn(
           "max-h-80 min-w-[var(--anchor-width)] overflow-hidden rounded-md border border-border bg-popover text-popover-foreground shadow-xl isolate",
           "data-[ending-style]:opacity-0 data-[starting-style]:opacity-0",
-          className
+          className,
         )}
         {...props}
       >
@@ -94,7 +94,7 @@ const SelectContent = React.forwardRef<
 SelectContent.displayName = "SelectContent";
 
 const SelectLabel = React.forwardRef<
-  React.ElementRef<typeof SelectPrimitive.GroupLabel>,
+  React.ComponentRef<typeof SelectPrimitive.GroupLabel>,
   React.ComponentPropsWithoutRef<typeof SelectPrimitive.GroupLabel>
 >(({ className, ...props }, ref) => (
   <SelectPrimitive.GroupLabel
@@ -106,7 +106,7 @@ const SelectLabel = React.forwardRef<
 SelectLabel.displayName = "SelectLabel";
 
 const SelectItem = React.forwardRef<
-  React.ElementRef<typeof SelectPrimitive.Item>,
+  React.ComponentRef<typeof SelectPrimitive.Item>,
   React.ComponentPropsWithoutRef<typeof SelectPrimitive.Item>
 >(({ className, children, ...props }, ref) => (
   <SelectPrimitive.Item
@@ -114,7 +114,7 @@ const SelectItem = React.forwardRef<
     data-slot="select-item"
     className={cn(
       "relative flex w-full select-none items-center rounded-sm py-1.5 pl-2 pr-8 text-xs outline-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50 data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground",
-      className
+      className,
     )}
     {...props}
   >
@@ -129,7 +129,7 @@ const SelectItem = React.forwardRef<
 SelectItem.displayName = "SelectItem";
 
 const SelectSeparator = React.forwardRef<
-  React.ElementRef<typeof SelectPrimitive.Separator>,
+  React.ComponentRef<typeof SelectPrimitive.Separator>,
   React.ComponentPropsWithoutRef<typeof SelectPrimitive.Separator>
 >(({ className, ...props }, ref) => (
   <SelectPrimitive.Separator

@@ -6,7 +6,7 @@ interface SeparatorProps extends React.ComponentPropsWithoutRef<typeof Separator
   decorative?: boolean;
 }
 
-const Separator = React.forwardRef<React.ElementRef<typeof SeparatorPrimitive>, SeparatorProps>(
+const Separator = React.forwardRef<React.ComponentRef<typeof SeparatorPrimitive>, SeparatorProps>(
   ({ className, orientation = "horizontal", decorative: _decorative = true, ...props }, ref) => (
     <SeparatorPrimitive
       ref={ref}
@@ -14,11 +14,11 @@ const Separator = React.forwardRef<React.ElementRef<typeof SeparatorPrimitive>, 
       className={cn(
         "shrink-0 bg-border",
         orientation === "horizontal" ? "h-[1px] w-full" : "h-full w-[1px]",
-        className
+        className,
       )}
       {...props}
     />
-  )
+  ),
 );
 Separator.displayName = "Separator";
 

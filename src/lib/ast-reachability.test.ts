@@ -105,6 +105,17 @@ export default KeepDefault;
     expect(output).not.toContain("function DropFn");
   });
 
+  it("should preserve default-exported identifiers with trailing comments", () => {
+    const input = `const KeepDefault = () => 1;
+function DropFn() { return 2; }
+export default KeepDefault; // keep this default export
+`;
+    const output = run(input, ["KeepDefault", "DropFn"], "ts");
+    expect(output).toContain("const KeepDefault");
+    expect(output).toContain("export default KeepDefault;");
+    expect(output).not.toContain("function DropFn");
+  });
+
   it("should preserve TSX default-exported component identifiers", () => {
     const input = `import { cn } from '../lib/utils';
 
