@@ -1,6 +1,6 @@
 [package]
 name = "bablusheed"
-version = "1.0.1"
+version = "1.0.2"
 description = "Bablusheed - Pack project files for LLM consumption"
 authors = ["Ragaeeb Haq"]
 homepage = "https://github.com/ragaeeb/bablusheed"
@@ -43,4 +43,5 @@ codegen-units = 1
 strip = true
 panic = "abort"
 incremental = false
+
 

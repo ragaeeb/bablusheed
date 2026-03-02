@@ -1,3 +1,10 @@
+## [1.0.2](https://github.com/ragaeeb/bablusheed/compare/v1.0.1...v1.0.2) (2026-03-02)
+
+
+### Bug Fixes
+
+* **ast:** Fix AST bug ([#14](https://github.com/ragaeeb/bablusheed/issues/14)) ([021ab3e](https://github.com/ragaeeb/bablusheed/commit/021ab3ef92adf1066f8fc9f4b2b607aecc33c7c4))
+
 ## [1.0.1](https://github.com/ragaeeb/bablusheed/compare/v1.0.0...v1.0.1) (2026-03-01)
 
 
