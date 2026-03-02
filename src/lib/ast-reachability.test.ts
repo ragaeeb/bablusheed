@@ -94,6 +94,46 @@ export { KeepViaDefault as default };
     expect(output).not.toContain("DropViaDefault");
   });
 
+  it("should preserve default-exported identifiers referenced by export default statements", () => {
+    const input = `const KeepDefault = () => 1;
+function DropFn() { return 2; }
+export default KeepDefault;
+`;
+    const output = run(input, ["KeepDefault", "DropFn"], "ts");
+    expect(output).toContain("const KeepDefault");
+    expect(output).toContain("export default KeepDefault");
+    expect(output).not.toContain("function DropFn");
+  });
+
+  it("should preserve TSX default-exported component identifiers", () => {
+    const input = `import { cn } from '../lib/utils';
+
+type LimitIndicatorProps = { percent: number };
+
+const getColorClass = (percent: number): string => {
+  if (percent >= 85) return 'bg-red-500';
+  if (percent >= 60) return 'bg-amber-400';
+  return 'bg-emerald-400';
+};
+
+const LimitIndicator = ({ percent }: LimitIndicatorProps) => {
+  const safePercent = Number.isFinite(percent) ? percent : 0;
+  const clampedPercent = Math.max(0, Math.min(safePercent, 100));
+  return (
+    <div>
+      <div className={cn('h-full transition-all', getColorClass(clampedPercent))} />
+    </div>
+  );
+};
+
+export default LimitIndicator;
+`;
+    const output = run(input, ["LimitIndicator"], "tsx");
+    expect(output).toContain("const LimitIndicator");
+    expect(output).toContain("export default LimitIndicator");
+    expect(output).toContain("getColorClass");
+  });
+
   it("should remove non-exported const/function/class declarations when unreachable", () => {
     const input = `const deadConst = () => 1;
 function deadFn() { return 2; }

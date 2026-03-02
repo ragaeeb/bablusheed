@@ -39,6 +39,8 @@ interface FilePreviewProps {
   isSelected: boolean;
   onToggleSelect: (id: string) => void;
   onLoadContent?: (path: string) => Promise<void>;
+  debugLogging?: boolean;
+  onDebugLog?: (line: string) => void;
   onClose: () => void;
 }
 
@@ -50,14 +52,20 @@ export function FilePreview({
   isSelected,
   onToggleSelect,
   onLoadContent,
+  debugLogging = false,
+  onDebugLog,
   onClose,
 }: FilePreviewProps) {
   const [copied, setCopied] = useState(false);
   const [copyError, setCopyError] = useState(false);
   const [showOptimized, setShowOptimized] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const inFlightLoadsRef = useRef(new Set<string>());
   const cachedPathsRef = useRef(new Set<string>());
+
+  const logDebug = (message: string) => {
+    if (!debugLogging || !onDebugLog) return;
+    onDebugLog(`[preview] ${message}`);
+  };
 
   useEffect(() => {
     cachedPathsRef.current = new Set(fileContents.keys());
@@ -69,25 +77,33 @@ export function FilePreview({
   const filePath = file?.path;
   useEffect(() => {
     if (!filePath) return;
-    if (cachedPathsRef.current.has(filePath)) return;
-    if (!onLoadContent) return;
-    if (inFlightLoadsRef.current.has(filePath)) return;
+    if (cachedPathsRef.current.has(filePath)) {
+      setIsLoading(false);
+      logDebug(`cache-hit path=${filePath}`);
+      return;
+    }
+    if (!onLoadContent) {
+      setIsLoading(false);
+      return;
+    }
 
-    inFlightLoadsRef.current.add(filePath);
-    let cancelled = false;
+    const startedAt = Date.now();
+    let alive = true;
     setIsLoading(true);
+    logDebug(`load-start path=${filePath}`);
     onLoadContent(filePath)
       .catch((err) => {
         console.error("Failed to load preview content:", err);
+        logDebug(`load-error path=${filePath} err=${String(err)}`);
       })
       .finally(() => {
-        inFlightLoadsRef.current.delete(filePath);
-        if (!cancelled) {
+        if (alive) {
           setIsLoading(false);
+          logDebug(`load-done path=${filePath} ms=${Date.now() - startedAt}`);
         }
       });
     return () => {
-      cancelled = true;
+      alive = false;
     };
   }, [filePath, onLoadContent]);
 

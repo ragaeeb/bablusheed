@@ -4,7 +4,8 @@ use tree_sitter::{Node, Parser};
 
 fn get_language(extension: &str) -> Option<tree_sitter::Language> {
     match extension {
-        "ts" | "tsx" => Some(tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into()),
+        "ts" => Some(tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into()),
+        "tsx" => Some(tree_sitter_typescript::LANGUAGE_TSX.into()),
         "js" | "jsx" => Some(tree_sitter_javascript::LANGUAGE.into()),
         "py" => Some(tree_sitter_python::LANGUAGE.into()),
         "rs" => Some(tree_sitter_rust::LANGUAGE.into()),
@@ -108,7 +109,10 @@ fn extract_symbols_from_node(
 
 /// Find all identifier references in a node (for call graph building)
 fn collect_references(node: Node, source: &[u8], refs: &mut HashSet<String>) {
-    if node.kind() == "identifier" || node.kind() == "type_identifier" {
+    if node.kind() == "identifier"
+        || node.kind() == "type_identifier"
+        || node.kind() == "jsx_identifier"
+    {
         let name = node_text(node, source);
         if !name.is_empty() && name.chars().next().map(|c| c.is_alphabetic() || c == '_').unwrap_or(false) {
             refs.insert(name.to_string());
@@ -206,6 +210,7 @@ pub async fn analyze_reachability(
     let mut symbol_map: HashMap<String, String> = HashMap::new(); // symbol -> file_path
     let mut file_symbols: HashMap<String, Vec<String>> = HashMap::new(); // file_path -> symbols
     let mut file_refs: HashMap<String, HashSet<String>> = HashMap::new(); // symbol -> refs
+    let mut file_level_refs: HashMap<String, HashSet<String>> = HashMap::new(); // file_path -> refs
 
     // Parse all files and extract symbols + refs
     for file in &files {
@@ -228,6 +233,9 @@ pub async fn analyze_reachability(
 
         let symbols = extract_symbols(source, &tree);
         let refs_by_symbol = collect_symbol_references(source, &tree);
+        let mut refs_for_file = HashSet::new();
+        collect_references(tree.root_node(), source, &mut refs_for_file);
+        file_level_refs.insert(file.path.clone(), refs_for_file);
 
         for sym in &symbols {
             symbol_map.insert(sym.clone(), file.path.clone());
@@ -250,6 +258,13 @@ pub async fn analyze_reachability(
     for sym in &entry_symbols {
         reachable.insert(sym.clone());
         queue.push_back(sym.clone());
+    }
+    if let Some(entry_refs) = file_level_refs.get(&entry_point) {
+        for sym in entry_refs {
+            if symbol_map.contains_key(sym) && reachable.insert(sym.clone()) {
+                queue.push_back(sym.clone());
+            }
+        }
     }
 
     while let Some(sym) = queue.pop_front() {
@@ -422,5 +437,62 @@ mod tests {
         let refs = parse_and_collect_refs(source, "py");
         let main_refs = refs.get("main").expect("main should have refs");
         assert!(main_refs.contains("helper"));
+    }
+
+    #[tokio::test]
+    async fn analyze_reachability_seeds_from_entry_refs_and_keeps_default_export_graph() {
+        let files = vec![
+            FileContent {
+                path: "/project/src/main.tsx".into(),
+                content: "import App from './App';\ncreateRoot(document.getElementById('root')!).render(<App />);\n".into(),
+                token_count: None,
+            },
+            FileContent {
+                path: "/project/src/App.tsx".into(),
+                content: "import LimitIndicator from './components/LimitIndicator';\nconst App = () => <LimitIndicator percent={50} />;\nexport default App;\n".into(),
+                token_count: None,
+            },
+            FileContent {
+                path: "/project/src/components/LimitIndicator.tsx".into(),
+                content: "const getColorClass = (percent: number): string => {\n  if (percent >= 85) return 'bg-red-500';\n  if (percent >= 60) return 'bg-amber-400';\n  return 'bg-emerald-400';\n};\nconst LimitIndicator = ({ percent }: { percent: number }) => {\n  const clampedPercent = Math.max(0, Math.min(percent, 100));\n  return <div className={getColorClass(clampedPercent)} />;\n};\nexport default LimitIndicator;\n".into(),
+                token_count: None,
+            },
+        ];
+
+        let result = analyze_reachability("/project/src/main.tsx".into(), files)
+            .await
+            .expect("reachability should succeed");
+
+        let app_reachable = result
+            .reachable_symbols
+            .get("/project/src/App.tsx")
+            .cloned()
+            .unwrap_or_default();
+        assert!(
+            app_reachable.contains(&"App".to_string()),
+            "App should be reachable from entry refs"
+        );
+
+        let indicator_reachable = result
+            .reachable_symbols
+            .get("/project/src/components/LimitIndicator.tsx")
+            .cloned()
+            .unwrap_or_default();
+        assert!(
+            indicator_reachable.contains(&"LimitIndicator".to_string()),
+            "default-exported component should be reachable"
+        );
+        assert!(
+            indicator_reachable.contains(&"getColorClass".to_string()),
+            "helper used by reachable component should be reachable"
+        );
+
+        let indicator_unreachable = result
+            .unreachable_symbols
+            .get("/project/src/components/LimitIndicator.tsx")
+            .cloned()
+            .unwrap_or_default();
+        assert!(!indicator_unreachable.contains(&"LimitIndicator".to_string()));
+        assert!(!indicator_unreachable.contains(&"getColorClass".to_string()));
     }
 }

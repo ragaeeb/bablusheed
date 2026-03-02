@@ -22,6 +22,7 @@ function isLikelyExportedSymbol(content: string, symbol: string, ext: string): b
       new RegExp(`^\\s*export\\s+(?:const|let|var)\\s+${escaped}\\b`, "m"),
       new RegExp(`^\\s*export\\s+class\\s+${escaped}\\b`, "m"),
       new RegExp(`^\\s*export\\s*\\{[^}]*\\b${escaped}\\b[^}]*\\}`, "m"),
+      new RegExp(`^\\s*export\\s+default\\s+${escaped}\\s*;?\\s*$`, "m"),
     ];
     return patterns.some((pattern) => pattern.test(content));
   }

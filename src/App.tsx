@@ -64,6 +64,29 @@ function countNodes<T extends { isDir: boolean; children?: T[] }>(nodes: T[]): n
   return count;
 }
 
+function buildPackFingerprint(
+  selectedPaths: string[],
+  llmId: string,
+  options: PackOptionsType,
+): string {
+  return JSON.stringify({
+    llmId,
+    options: {
+      astDeadCode: options.astDeadCode,
+      entryPoint: options.entryPoint,
+      maxTokensPerPackFile: options.maxTokensPerPackFile,
+      minifyMarkdown: options.minifyMarkdown,
+      numPacks: options.numPacks,
+      outputFormat: options.outputFormat,
+      reduceWhitespace: options.reduceWhitespace,
+      stripComments: options.stripComments,
+      stripMarkdownBlockquotes: options.stripMarkdownBlockquotes,
+      stripMarkdownHeadings: options.stripMarkdownHeadings,
+    },
+    selectedPaths: [...selectedPaths].sort(),
+  });
+}
+
 /** 2b: Workflow step indicator */
 type WorkflowStep = 1 | 2 | 3;
 
@@ -128,6 +151,8 @@ export default function App() {
   const [lastProjectName, setLastProjectName] = useState<string | null>(null);
   const [debugLogging, setDebugLogging] = useState(false);
   const [debugLogs, setDebugLogs] = useState<string[]>([]);
+  const [hasManualNumPacksOverride, setHasManualNumPacksOverride] = useState(false);
+  const [lastPackedFingerprint, setLastPackedFingerprint] = useState<string | null>(null);
   const [debugLiveMetrics, setDebugLiveMetrics] = useState<DebugLiveMetrics>({
     appRendersPerMin: 0,
     astCacheHitCount: 0,
@@ -140,6 +165,9 @@ export default function App() {
 
   const storeRef = useRef<Awaited<ReturnType<typeof load>> | null>(null);
   const loadProjectRef = useRef<(folderPath: string) => Promise<void>>(async () => {});
+  const debugLoggingRef = useRef(false);
+  const lastRequestedPackFingerprintRef = useRef<string | null>(null);
+  const currentPackFingerprintRef = useRef<string>("");
   const renderSamplesRef = useRef<Record<string, number[]>>({
     App: [],
     FileTree: [],
@@ -180,12 +208,12 @@ export default function App() {
   } = useFileTree();
 
   const llmProfile = getProfile(selectedLlmId);
-  const appendDebugLog = (line: string) => {
+  const appendDebugLog = useCallback((line: string) => {
     setDebugLogs((prev) => {
       const next = [...prev, line];
       return next.length > 5000 ? next.slice(next.length - 5000) : next;
     });
-  };
+  }, []);
   const appendRenderSample = (component: string, timestampMs: number) => {
     if (!debugLogging) return;
     const bucket = renderSamplesRef.current[component] ?? [];
@@ -227,6 +255,10 @@ export default function App() {
     appendDebugLog,
     incrementDebugMetric,
   );
+
+  useEffect(() => {
+    debugLoggingRef.current = debugLogging;
+  }, [debugLogging]);
 
   useEffect(() => {
     if (!debugLogging) {
@@ -319,6 +351,25 @@ export default function App() {
     return map;
   })();
   const selectedAbsolutePaths = selectedFiles.filter((f) => !f.isDir).map((f) => f.path);
+  const selectedFileCount = selectedAbsolutePaths.length;
+  const maxSensiblePacks = Math.min(llmProfile.maxFileAttachments, Math.max(selectedFileCount, 1));
+  const defaultNumPacks = Math.min(maxSensiblePacks, Math.max(1, Math.min(selectedFileCount, 5)));
+  const currentPackFingerprint = buildPackFingerprint(selectedAbsolutePaths, selectedLlmId, packOptions);
+  const isPackOutdated =
+    packResult !== null &&
+    lastPackedFingerprint !== null &&
+    lastPackedFingerprint !== currentPackFingerprint;
+
+  useEffect(() => {
+    currentPackFingerprintRef.current = currentPackFingerprint;
+  }, [currentPackFingerprint]);
+
+  useEffect(() => {
+    if (!packResult) return;
+    setLastPackedFingerprint(
+      lastRequestedPackFingerprintRef.current ?? currentPackFingerprintRef.current,
+    );
+  }, [packResult]);
 
   // Update token counts in tree when tokenMap changes
   useEffect(() => {
@@ -394,24 +445,48 @@ export default function App() {
   // 3c: Lazy file content loading — load on demand, cache in fileContents.
   // Uses functional updater to check existence inside the updater so fileContents
   // is not a dependency (avoids recreating the callback on every Map change).
-  const loadFileContent = async (path: string): Promise<void> => {
-    try {
-      const content = await readProjectFile(path);
-      setFileContents((prev) => {
-        if (prev.has(path)) return prev;
-        const next = new Map(prev);
-        next.set(path, content);
-        return next;
-      });
-    } catch {
-      setFileContents((prev) => {
-        if (prev.has(path)) return prev;
-        const next = new Map(prev);
-        next.set(path, "");
-        return next;
-      });
-    }
-  };
+  const loadFileContent = useCallback(
+    async (path: string): Promise<void> => {
+      if (debugLoggingRef.current) {
+        setDebugLogs((prev) => {
+          const next = [...prev, `[${new Date().toISOString()}] preview-read start path=${path}`];
+          return next.length > 5000 ? next.slice(next.length - 5000) : next;
+        });
+      }
+      try {
+        const content = await readProjectFile(path);
+        setFileContents((prev) => {
+          if (prev.has(path)) return prev;
+          const next = new Map(prev);
+          next.set(path, content);
+          return next;
+        });
+        if (debugLoggingRef.current) {
+          setDebugLogs((prev) => {
+            const next = [
+              ...prev,
+              `[${new Date().toISOString()}] preview-read success path=${path} chars=${content.length}`,
+            ];
+            return next.length > 5000 ? next.slice(next.length - 5000) : next;
+          });
+        }
+      } catch {
+        setFileContents((prev) => {
+          if (prev.has(path)) return prev;
+          const next = new Map(prev);
+          next.set(path, "");
+          return next;
+        });
+        if (debugLoggingRef.current) {
+          setDebugLogs((prev) => {
+            const next = [...prev, `[${new Date().toISOString()}] preview-read failed path=${path}`];
+            return next.length > 5000 ? next.slice(next.length - 5000) : next;
+          });
+        }
+      }
+    },
+    [readProjectFile],
+  );
 
   // Load content for selected files whenever selection changes.
   // Filter to only files not yet loaded to avoid redundant reads.
@@ -451,6 +526,9 @@ export default function App() {
   // 3i: loadProject reads from refs, stable reference
   const loadProject = async (folderPath: string) => {
     setIsLoadingTree(true);
+    setHasManualNumPacksOverride(false);
+    setLastPackedFingerprint(null);
+    lastRequestedPackFingerprintRef.current = null;
     setProjectPath(folderPath);
     const parts = folderPath.replace(/\\/g, "/").split("/");
     const name = parts[parts.length - 1] ?? folderPath;
@@ -550,6 +628,7 @@ export default function App() {
   }, []);
 
   const handlePack = async () => {
+    lastRequestedPackFingerprintRef.current = currentPackFingerprint;
     await pack(packOptions);
     setShowOutput(true);
   };
@@ -576,6 +655,9 @@ export default function App() {
     setPreviewPath(null);
     setCenterTab("options");
     setFileContents(new Map());
+    setHasManualNumPacksOverride(false);
+    setLastPackedFingerprint(null);
+    lastRequestedPackFingerprintRef.current = null;
     setShowOutput(false);
     setSearchQuery("");
     setHighlightedPath(null);
@@ -589,12 +671,18 @@ export default function App() {
 
   const handleExportDebugLogs = async () => {
     if (debugLogs.length === 0) return;
+    appendDebugLog(
+      `[${new Date().toISOString()}] bug-report export start lines=${debugLogs.length}`,
+    );
     try {
       const path = await save({
-        defaultPath: `bablusheed_debug_${new Date().toISOString().replace(/[:.]/g, "-")}.log`,
-        filters: [{ extensions: ["log", "txt"], name: "Log Files" }],
+        defaultPath: `bablusheed_bug_report_${new Date().toISOString().replace(/[:.]/g, "-")}.txt`,
+        filters: [{ extensions: ["txt", "log"], name: "Log Files" }],
       });
-      if (!path) return;
+      if (!path) {
+        appendDebugLog(`[${new Date().toISOString()}] bug-report export cancelled`);
+        return;
+      }
       const exportDir = await dirname(path);
       await invoke("authorize_export_directory", { path: exportDir });
 
@@ -611,21 +699,39 @@ export default function App() {
         content: `${header}${debugLogs.join("\n")}\n`,
         path,
       });
+      appendDebugLog(
+        `[${new Date().toISOString()}] bug-report export success path=${path} lines=${debugLogs.length}`,
+      );
     } catch (err) {
       console.error("Failed to export debug logs:", err);
+      appendDebugLog(
+        `[${new Date().toISOString()}] bug-report export failed err=${String(err)}`,
+      );
     }
   };
 
   // 3n: Cap numPacks slider max at selectedFiles.length
-  const maxSensiblePacks = Math.min(
-    llmProfile.maxFileAttachments,
-    Math.max(selectedFiles.length, 1),
-  );
+  useEffect(() => {
+    if (selectedFileCount === 0) {
+      setHasManualNumPacksOverride(false);
+    }
+  }, [selectedFileCount]);
+
   useEffect(() => {
     if (packOptions.numPacks > maxSensiblePacks) {
       setPackOptions((prev) => ({ ...prev, numPacks: maxSensiblePacks }));
+      return;
     }
-  }, [maxSensiblePacks, packOptions.numPacks]);
+
+    if (!hasManualNumPacksOverride && packOptions.numPacks !== defaultNumPacks) {
+      setPackOptions((prev) => ({ ...prev, numPacks: defaultNumPacks }));
+    }
+  }, [
+    defaultNumPacks,
+    hasManualNumPacksOverride,
+    maxSensiblePacks,
+    packOptions.numPacks,
+  ]);
 
   // 2b: Determine current workflow step
   const workflowStep: WorkflowStep = (() => {
@@ -879,6 +985,8 @@ export default function App() {
                     isSelected={previewFile.checkState === "checked"}
                     onToggleSelect={toggleCheck}
                     onLoadContent={loadFileContent}
+                    debugLogging={debugLogging}
+                    onDebugLog={appendDebugLog}
                     onClose={handleClosePreview}
                   />
                 </div>
@@ -888,7 +996,12 @@ export default function App() {
                   <div className="flex-1 overflow-y-auto">
                     <PackOptions
                       options={packOptions}
-                      onChange={setPackOptions}
+                      onChange={(next) => {
+                        if (next.numPacks !== packOptions.numPacks) {
+                          setHasManualNumPacksOverride(true);
+                        }
+                        setPackOptions(next);
+                      }}
                       maxPacks={maxSensiblePacks}
                       selectedFiles={selectedFiles}
                       contextWindowTokens={llmProfile.contextWindowTokens}
@@ -908,6 +1021,11 @@ export default function App() {
 
                   {/* Pack button */}
                   <div className="shrink-0 px-3 py-2 border-t border-border bg-card/50">
+                    {isPackOutdated && (
+                      <p className="text-[11px] text-amber-700 dark:text-amber-400 mb-1.5 font-medium">
+                        Output is out of date. Selection or options changed since last pack.
+                      </p>
+                    )}
                     {packError && (
                       <p className="text-[11px] text-red-500 dark:text-red-400 mb-1.5 font-mono">
                         {packError}
@@ -929,8 +1047,13 @@ export default function App() {
                     <button
                       type="button"
                       onClick={handlePack}
-                      disabled={selectedFiles.length === 0 || isPacking}
-                      className="w-full h-8 inline-flex items-center justify-center gap-2 text-xs font-semibold rounded-md bg-primary text-primary-foreground shadow-sm cursor-pointer transition-all duration-150 hover:bg-primary/90 hover:-translate-y-0.5 hover:shadow-md active:translate-y-0 active:shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
+                      disabled={selectedFileCount === 0 || isPacking}
+                      className={cn(
+                        "w-full h-8 inline-flex items-center justify-center gap-2 text-xs font-semibold rounded-md text-primary-foreground shadow-sm cursor-pointer transition-all duration-150 hover:-translate-y-0.5 hover:shadow-md active:translate-y-0 active:shadow-sm disabled:opacity-40 disabled:cursor-not-allowed",
+                        isPackOutdated
+                          ? "bg-amber-600 hover:bg-amber-500"
+                          : "bg-primary hover:bg-primary/90",
+                      )}
                     >
                       {isPacking ? (
                         <>
@@ -940,8 +1063,8 @@ export default function App() {
                       ) : (
                         <>
                           <Package2 className="h-3.5 w-3.5" />
-                          Pack{" "}
-                          {selectedFiles.length > 0 ? `${selectedFiles.length} Files` : "Files"}
+                          {isPackOutdated ? "Re-Pack" : "Pack"}{" "}
+                          {selectedFileCount > 0 ? `${selectedFileCount} Files` : "Files"}
                         </>
                       )}
                     </button>
@@ -961,6 +1084,8 @@ export default function App() {
                   onRenderSample={appendRenderSample}
                   onClose={() => {
                     setShowOutput(false);
+                    setLastPackedFingerprint(null);
+                    lastRequestedPackFingerprintRef.current = null;
                     clearResult();
                   }}
                 />
