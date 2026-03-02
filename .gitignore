@@ -21,3 +21,4 @@ dist-ssr
 *.sln
 *.sw?
 .minimax
+.env.build
