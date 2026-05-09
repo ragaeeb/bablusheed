@@ -59,10 +59,10 @@ fn extract_symbols_from_node(
             // const foo = ... or let foo = ...
             let mut cursor = node.walk();
             for child in node.children(&mut cursor) {
-                if child.kind() == "variable_declarator" {
-                    if let Some(name_node) = child.child_by_field_name("name") {
-                        symbols.push(node_text(name_node, source).to_string());
-                    }
+                if child.kind() == "variable_declarator"
+                    && let Some(name_node) = child.child_by_field_name("name")
+                {
+                    symbols.push(node_text(name_node, source).to_string());
                 }
             }
         }
@@ -146,7 +146,7 @@ fn insert_symbol_references(
     symbol_refs
         .entry(name)
         .or_default()
-        .extend(refs.into_iter());
+        .extend(refs);
 }
 
 fn collect_symbol_references_from_node(
@@ -181,11 +181,11 @@ fn collect_symbol_references_from_node(
         "lexical_declaration" | "variable_declaration" => {
             let mut cursor = node.walk();
             for child in node.children(&mut cursor) {
-                if child.kind() == "variable_declarator" {
-                    if let Some(name_node) = child.child_by_field_name("name") {
-                        let name = node_text(name_node, source).to_string();
-                        insert_symbol_references(symbol_refs, source, name, child);
-                    }
+                if child.kind() == "variable_declarator"
+                    && let Some(name_node) = child.child_by_field_name("name")
+                {
+                    let name = node_text(name_node, source).to_string();
+                    insert_symbol_references(symbol_refs, source, name, child);
                 }
             }
         }
@@ -490,15 +490,14 @@ pub async fn analyze_reachability(
                 Some(imported_name.clone())
             };
 
-            if let Some(candidate) = mapped_symbol {
-                if symbol_map
+            if let Some(candidate) = mapped_symbol
+                && symbol_map
                     .get(&candidate)
                     .map(|owner| owner == &target_file)
                     .unwrap_or(false)
-                    && reachable.insert(candidate.clone())
-                {
-                    queue.push_back(candidate);
-                }
+                && reachable.insert(candidate.clone())
+            {
+                queue.push_back(candidate);
             }
         }
     }

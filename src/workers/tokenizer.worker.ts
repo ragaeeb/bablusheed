@@ -1,4 +1,5 @@
 import { getEncoding, type TiktokenEncoding } from "js-tiktoken";
+import { estimateApproxTokens } from "../lib/token-estimation";
 import type { WorkerMessage, WorkerResult } from "../types";
 
 const encodingCache = new Map<string, ReturnType<typeof getEncoding>>();
@@ -19,13 +20,15 @@ self.onmessage = (event: MessageEvent<WorkerMessage>) => {
   if (type === "count") {
     const results = files.map(({ path, content }) => {
       try {
-        const encoding: TiktokenEncoding = strategy === "openai" ? "o200k_base" : "cl100k_base";
-        // "approx" is intentionally a fast single-pass estimate, not a model-exact tokenizer.
-        const tokens = getEncoder(encoding).encode(content).length;
-        return { path, tokens };
+        if (strategy === "approx") {
+          return { path, tokens: estimateApproxTokens(content) };
+        }
+
+        const encoding: TiktokenEncoding = "o200k_base";
+        return { path, tokens: getEncoder(encoding).encode(content).length };
       } catch {
         // Fallback: rough estimate of 4 chars per token
-        return { path, tokens: Math.ceil(content.length / 4) };
+        return { path, tokens: estimateApproxTokens(content) };
       }
     });
 

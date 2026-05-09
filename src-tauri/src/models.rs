@@ -52,6 +52,8 @@ pub struct PackItem {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PackResponse {
     pub packs: Vec<PackItem>,
+    #[serde(rename = "outputFormat")]
+    pub output_format: String,
     #[serde(rename = "totalTokens")]
     pub total_tokens: usize,
 }

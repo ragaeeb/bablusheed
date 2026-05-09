@@ -20,7 +20,7 @@ Bablusheed is a Tauri + React desktop app that packs repositories into LLM-frien
 - Lets you open a project and select files quickly (`Source`, `Tests`, `Config`, `Docs`, custom filters).
 - Estimates tokens per file and in total for the selected LLM profile.
 - Packs selected files into `N` output packs (`Plain` or `Markdown`).
-- Exports all packs in one folder operation.
+- Exports all packs in one folder operation, using `.txt` for plaintext output and `.md` for markdown output.
 
 ## Optimization Features
 
@@ -51,7 +51,7 @@ Desktop icon sources are:
 
 - `src-tauri/icons/icon.png`
 - `src-tauri/icons/icon.icns`
-- `public/vite.svg` (web svg source; mirrored to `public/favicon.svg`)
+- `public/favicon.svg`
 
 Regenerate and clean icon outputs (desktop-only) with:
 
@@ -79,6 +79,9 @@ bun dev
 
 ```bash
 bun run ci
+bun run lint
+bun run vite:build
+cargo test --manifest-path src-tauri/Cargo.toml
 ```
 
 ## Testing

@@ -314,6 +314,23 @@ export function useTokenCount(
           }
         }
 
+        const selectedPathSet = new Set(countedContents.keys());
+        setTokenMap((prev) => {
+          let changed = false;
+          const next = new Map(prev);
+          for (const path of next.keys()) {
+            if (!selectedPathSet.has(path)) {
+              next.delete(path);
+              changed = true;
+            }
+          }
+          if (!changed) {
+            return prev;
+          }
+          tokenMapRef.current = next;
+          return next;
+        });
+
         if (newPending.size === 0) {
           return;
         }

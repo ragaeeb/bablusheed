@@ -18,6 +18,7 @@ import { useFileTree } from "@/hooks/useFileTree";
 import { usePackager } from "@/hooks/usePackager";
 import { useTokenCount } from "@/hooks/useTokenCount";
 import { getProfile } from "@/lib/llm-profiles";
+import { DEFAULT_CUSTOM_IGNORE_PATTERNS_TEXT, normalizeSavedPackOptions } from "@/lib/pack-options";
 import {
   buildOversizedFilesWarning,
   findOversizedFiles,
@@ -30,7 +31,7 @@ import type { FileNode, PackOptions as PackOptionsType } from "@/types";
 
 const DEFAULT_PACK_OPTIONS: PackOptionsType = {
   astDeadCode: false,
-  customIgnorePatterns: "**/*.test.ts\n**/*.spec.*\n**/__mocks__/**",
+  customIgnorePatterns: DEFAULT_CUSTOM_IGNORE_PATTERNS_TEXT,
   entryPoint: null,
   maxTokensPerPackFile: 0,
   minifyMarkdown: true,
@@ -415,9 +416,7 @@ export default function App() {
 
   // Update token counts in tree when tokenMap changes
   useEffect(() => {
-    if (tokenMap.size > 0) {
-      updateTokens(tokenMap);
-    }
+    updateTokens(tokenMap);
   }, [tokenMap, updateTokens]);
 
   // Load settings from store on startup
@@ -446,11 +445,7 @@ export default function App() {
           setLogLevel("debug");
         }
         if (savedPackOptions) {
-          const merged = { ...DEFAULT_PACK_OPTIONS, ...savedPackOptions };
-          if (merged.outputFormat !== "markdown" && merged.outputFormat !== "plaintext") {
-            merged.outputFormat = "markdown";
-          }
-          setPackOptions(merged);
+          setPackOptions(normalizeSavedPackOptions(savedPackOptions, DEFAULT_PACK_OPTIONS));
         }
         if (savedLastPath) {
           setLastProjectPath(savedLastPath);
@@ -498,6 +493,43 @@ export default function App() {
     [],
   );
 
+  const hydrateFileContents = useCallback(
+    async (paths: string[], reason: string): Promise<Map<string, string>> => {
+      const pendingPaths = Array.from(new Set(paths)).filter((path) => !fileContents.has(path));
+      if (pendingPaths.length === 0) {
+        return new Map();
+      }
+
+      appendLog("debug", `${reason} start count=${pendingPaths.length}`);
+      const updates = new Map<string, string>();
+
+      await Promise.all(
+        pendingPaths.map(async (path) => {
+          try {
+            const content = await readProjectFile(path);
+            updates.set(path, content);
+          } catch (err) {
+            appendLog("error", `${reason} failed path=${path} err=${String(err)}`);
+          }
+        }),
+      );
+
+      if (updates.size > 0) {
+        setFileContents((prev) => {
+          const next = new Map(prev);
+          for (const [path, content] of updates) {
+            next.set(path, content);
+          }
+          return next;
+        });
+      }
+
+      appendLog("debug", `${reason} done loaded=${updates.size} requested=${pendingPaths.length}`);
+      return updates;
+    },
+    [appendLog, fileContents, readProjectFile],
+  );
+
   // 3c: Lazy file content loading — load on demand, cache in fileContents.
   // Uses functional updater to check existence inside the updater so fileContents
   // is not a dependency (avoids recreating the callback on every Map change).
@@ -535,38 +567,17 @@ export default function App() {
 
     let cancelled = false;
     const loadMissingContents = async () => {
-      const updates = new Map<string, string>();
-      await Promise.all(
-        filesToLoad.map(async (path) => {
-          try {
-            const content = await readProjectFile(path);
-            updates.set(path, content);
-          } catch (err) {
-            appendLog("error", `selection-preload failed path=${path} err=${String(err)}`);
-          }
-        }),
-      );
+      const updates = await hydrateFileContents(filesToLoad, "selection-preload");
       if (cancelled || updates.size === 0) {
         return;
       }
-      setFileContents((prev) => {
-        const toAdd = Array.from(updates.entries()).filter(([k]) => !prev.has(k));
-        if (toAdd.length === 0) {
-          return prev;
-        }
-        const next = new Map(prev);
-        for (const [k, v] of toAdd) {
-          next.set(k, v);
-        }
-        return next;
-      });
     };
 
     void loadMissingContents();
     return () => {
       cancelled = true;
     };
-  }, [appendLog, fileContents, readProjectFile, selectedFiles]);
+  }, [fileContents, hydrateFileContents, selectedFiles]);
 
   // 3i: loadProject reads from refs, stable reference
   const loadProject = async (folderPath: string) => {
@@ -686,9 +697,23 @@ export default function App() {
       "info",
       `pack-trigger selected=${selectedFileCount} packs=${packOptions.numPacks} llm=${selectedLlmId}`,
     );
+    const missingSelectedPaths = selectedFiles
+      .filter((file) => !file.isDir)
+      .map((file) => file.path)
+      .filter((path) => !fileContents.has(path));
+
+    let contentOverrides: Map<string, string> | undefined;
+    if (missingSelectedPaths.length > 0) {
+      const loaded = await hydrateFileContents(missingSelectedPaths, "pack-preload");
+      contentOverrides = new Map(fileContents);
+      for (const [path, content] of loaded) {
+        contentOverrides.set(path, content);
+      }
+    }
+
     lastRequestedPackFingerprintRef.current = currentPackFingerprint;
-    await pack(packOptions);
-    setShowOutput(true);
+    const result = await pack(packOptions, contentOverrides);
+    setShowOutput(result !== null);
   };
 
   const handleFileHighlight = (path: string) => {

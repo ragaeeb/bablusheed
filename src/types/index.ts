@@ -60,6 +60,7 @@ export interface PackItem {
 }
 
 export interface PackResponse {
+  outputFormat: "plaintext" | "markdown";
   packs: PackItem[];
   totalTokens: number;
 }

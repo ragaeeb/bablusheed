@@ -67,18 +67,18 @@ fn canonicalize_for_write(path: &Path) -> Result<PathBuf, String> {
 }
 
 fn remember_project_root(root: PathBuf) {
-    if let Ok(mut state) = FS_SCOPE_STATE.lock() {
-        if !state.project_roots.iter().any(|existing| existing == &root) {
-            state.project_roots.push(root);
-        }
+    if let Ok(mut state) = FS_SCOPE_STATE.lock()
+        && !state.project_roots.iter().any(|existing| existing == &root)
+    {
+        state.project_roots.push(root);
     }
 }
 
 fn remember_export_root(root: PathBuf) {
-    if let Ok(mut state) = FS_SCOPE_STATE.lock() {
-        if !state.export_roots.iter().any(|existing| existing == &root) {
-            state.export_roots.push(root);
-        }
+    if let Ok(mut state) = FS_SCOPE_STATE.lock()
+        && !state.export_roots.iter().any(|existing| existing == &root)
+    {
+        state.export_roots.push(root);
     }
 }
 
@@ -308,10 +308,10 @@ pub async fn write_file_content(path: String, content: String) -> Result<(), Str
         return Err(format!("Parent traversal is not allowed: {path}"));
     }
 
-    if let Ok(metadata) = std::fs::metadata(&file_path) {
-        if metadata.is_dir() {
-            return Err(format!("Path is a directory: {}", path));
-        }
+    if let Ok(metadata) = std::fs::metadata(&file_path)
+        && metadata.is_dir()
+    {
+        return Err(format!("Path is a directory: {}", path));
     }
 
     let canonical_target = canonicalize_for_write(&file_path)?;
