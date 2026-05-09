@@ -3,7 +3,11 @@ use std::collections::{BTreeSet, HashMap, HashSet};
 
 /// Estimate tokens using a simple approximation (1 token ≈ 4 characters)
 fn estimate_tokens(content: &str) -> usize {
-    (content.len() / 4).max(1)
+    if content.is_empty() {
+        return 0;
+    }
+
+    content.len().div_ceil(4)
 }
 
 fn format_file_header(path: &str, content: &str, format: &str) -> String {
@@ -181,28 +185,27 @@ fn extract_module_specifiers(content: &str) -> Vec<String> {
         }
 
         // Python: from foo.bar import baz
-        if let Some(rest) = line.strip_prefix("from ") {
-            if let Some((module, _)) = rest.split_once(" import ") {
-                let module = module.trim().replace('.', "/");
-                if !module.is_empty() {
-                    specifiers.insert(module);
-                }
+        if let Some(rest) = line.strip_prefix("from ")
+            && let Some((module, _)) = rest.split_once(" import ")
+        {
+            let module = module.trim().replace('.', "/");
+            if !module.is_empty() {
+                specifiers.insert(module);
             }
         }
 
         // Python: import foo.bar, baz
-        if let Some(rest) = line.strip_prefix("import ") {
-            if !rest.contains('"') && !rest.contains('\'') && !rest.contains(" from ") {
-                for item in rest.split(',') {
-                    let module = item
-                        .trim()
-                        .split_whitespace()
-                        .next()
-                        .unwrap_or("")
-                        .replace('.', "/");
-                    if !module.is_empty() {
-                        specifiers.insert(module);
-                    }
+        if let Some(rest) = line.strip_prefix("import ")
+            && !rest.contains('"') && !rest.contains('\'') && !rest.contains(" from ")
+        {
+            for item in rest.split(',') {
+                let module = item
+                    .split_whitespace()
+                    .next()
+                    .unwrap_or("")
+                    .replace('.', "/");
+                if !module.is_empty() {
+                    specifiers.insert(module);
                 }
             }
         }
@@ -292,10 +295,10 @@ fn build_dependency_graph(files: &[FileContent]) -> (Vec<String>, Vec<HashSet<us
     for (idx, file) in files.iter().enumerate() {
         let current_path = &normalized_paths[idx];
         for spec in extract_module_specifiers(&file.content) {
-            if let Some(dep_idx) = resolve_module_specifier(&spec, current_path, &path_to_idx) {
-                if dep_idx != idx && edges[dep_idx].insert(idx) {
-                    indegree[idx] += 1;
-                }
+            if let Some(dep_idx) = resolve_module_specifier(&spec, current_path, &path_to_idx)
+                && dep_idx != idx && edges[dep_idx].insert(idx)
+            {
+                indegree[idx] += 1;
             }
         }
     }
@@ -363,11 +366,11 @@ fn build_related_adjacency(files: &[FileContent]) -> Vec<HashSet<usize>> {
     for (idx, file) in files.iter().enumerate() {
         let current_path = &normalized_paths[idx];
         for spec in extract_module_specifiers(&file.content) {
-            if let Some(dep_idx) = resolve_module_specifier(&spec, current_path, &path_to_idx) {
-                if dep_idx != idx {
-                    adjacency[idx].insert(dep_idx);
-                    adjacency[dep_idx].insert(idx);
-                }
+            if let Some(dep_idx) = resolve_module_specifier(&spec, current_path, &path_to_idx)
+                && dep_idx != idx
+            {
+                adjacency[idx].insert(dep_idx);
+                adjacency[dep_idx].insert(idx);
             }
         }
     }
@@ -458,7 +461,7 @@ fn distribute_files(ordered_indices: &[usize], num_packs: usize, token_counts: &
             continue;
         }
 
-        let boundary = (total_tokens * (current_bin + 1) + pack_count - 1) / pack_count;
+        let boundary = (total_tokens * (current_bin + 1)).div_ceil(pack_count);
         let remaining_files = n - position - 1;
         let remaining_bins = pack_count - current_bin - 1;
 
@@ -513,6 +516,7 @@ pub async fn pack_files(request: PackRequest) -> Result<PackResponse, String> {
     let files = &request.files;
     if files.is_empty() {
         return Ok(PackResponse {
+            output_format: request.output_format.clone(),
             packs: Vec::new(),
             total_tokens: 0,
         });
@@ -572,7 +576,11 @@ pub async fn pack_files(request: PackRequest) -> Result<PackResponse, String> {
         });
     }
 
-    Ok(PackResponse { packs, total_tokens })
+    Ok(PackResponse {
+        packs,
+        output_format: request.output_format,
+        total_tokens,
+    })
 }
 
 #[cfg(test)]
@@ -586,7 +594,8 @@ mod tests {
     fn estimate_tokens_basic() {
         assert_eq!(estimate_tokens("abcd"), 1);
         assert_eq!(estimate_tokens("abcdefgh"), 2);
-        assert_eq!(estimate_tokens(""), 1); // max(0,1) = 1
+        assert_eq!(estimate_tokens("abcde"), 2);
+        assert_eq!(estimate_tokens(""), 0);
     }
 
     // ── normalize_path ──

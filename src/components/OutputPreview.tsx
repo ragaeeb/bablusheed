@@ -4,7 +4,11 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { ChevronDown, ChevronRight, FileText, Package, X } from "lucide-react";
 import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { buildPackFileTokenMap } from "@/lib/output-preview";
+import {
+  buildPackFileTokenMap,
+  getPackExportFileExtension,
+  getPackExportFilename,
+} from "@/lib/output-preview";
 import { useRenderDiagnostics } from "@/lib/render-diagnostics";
 import { formatTokenCount } from "@/lib/utils";
 import type { PackResponse } from "@/types";
@@ -94,6 +98,7 @@ export function OutputPreview({
   const [exportingAll, setExportingAll] = useState(false);
 
   const fileTokenMap = buildPackFileTokenMap(packResult.packs, tokenMap);
+  const exportExtension = getPackExportFileExtension(packResult.outputFormat);
 
   const handleExportAll = async () => {
     setExportingAll(true);
@@ -111,7 +116,11 @@ export function OutputPreview({
       await invoke("authorize_export_directory", { path: folder });
 
       for (const pack of packResult.packs) {
-        const filename = `bablusheed_pack_${pack.index + 1}_of_${packResult.packs.length}.txt`;
+        const filename = getPackExportFilename(
+          pack.index,
+          packResult.packs.length,
+          packResult.outputFormat,
+        );
         const path = await join(folder, filename);
         onEventLog?.("debug", `export-all write start path=${path}`);
         await invoke("write_file_content", { content: pack.content, path });
@@ -144,8 +153,8 @@ export function OutputPreview({
             className="inline-flex items-center gap-1 h-6 px-2 text-[11px] font-medium rounded border border-border bg-background text-muted-foreground hover:text-foreground hover:border-primary/50 transition-colors disabled:opacity-50"
             title={
               packResult.packs.length > 1
-                ? "Export all packs as .txt files"
-                : "Export pack as .txt file"
+                ? `Export all packs as .${exportExtension} files`
+                : `Export pack as a .${exportExtension} file`
             }
           >
             <Package className="h-3 w-3" />
@@ -212,7 +221,7 @@ export function OutputPreview({
         {showHowTo && (
           <ol className="mt-1.5 space-y-0.5 text-[10px] text-muted-foreground/70 list-decimal list-inside">
             <li>Go to claude.ai or chatgpt.com and start a new conversation.</li>
-            <li>Attach Pack 1 as a file (drag the .txt file or use the paperclip icon).</li>
+            <li>Attach Pack 1 as a file (drag the exported file or use the paperclip icon).</li>
             <li>If you have multiple packs, attach them all before sending.</li>
             <li>Paste your prompt and send.</li>
           </ol>

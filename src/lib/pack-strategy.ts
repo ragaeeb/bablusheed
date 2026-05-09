@@ -1,3 +1,5 @@
+import { APPROX_CHARS_PER_TOKEN, estimateApproxTokens } from "@/lib/token-estimation";
+
 export interface PackStrategyFile {
   path: string;
   content: string;
@@ -29,7 +31,6 @@ export interface PerPackAdvisoryStatus {
 const MIN_ADVISORY_TOKENS_PER_FILE = 4_000;
 const MAX_ADVISORY_TOKENS_PER_FILE = 20_000;
 const ADVISORY_WINDOW_RATIO = 0.08;
-const APPROX_CHARS_PER_TOKEN = 4;
 const MIN_BREAK_SCAN_RATIO = 0.35;
 const ADVISORY_WARN_RATIO = 0.85;
 
@@ -44,10 +45,7 @@ function formatCompactTokenCount(tokens: number): string {
 }
 
 export function estimateTokens(content: string): number {
-  if (content.length === 0) {
-    return 0;
-  }
-  return Math.max(Math.ceil(content.length / APPROX_CHARS_PER_TOKEN), 1);
+  return estimateApproxTokens(content);
 }
 
 export function deriveAdvisoryMaxTokensPerFile(contextWindowTokens: number): number {

@@ -4,6 +4,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { AST_SUPPORTED_EXTENSIONS } from "@/lib/ast-reachability";
+import { DEFAULT_CUSTOM_IGNORE_PATTERNS_TEXT } from "@/lib/pack-options";
 import {
   deriveAdvisoryMaxTokensPerFile,
   resolveAdvisoryMaxTokensPerFile,
@@ -95,7 +96,10 @@ export function PackOptions({
   const [ignoreOpen, setIgnoreOpen] = useState(false);
   const optionsRef = useRef(options);
 
-  const hasMarkdownFiles = selectedFiles.some((f) => f.extension === "md");
+  const hasMarkdownFiles = selectedFiles.some((f) => {
+    const extension = f.extension.toLowerCase();
+    return extension === "md" || extension === "mdx";
+  });
   const autoAdvisoryMax = deriveAdvisoryMaxTokensPerFile(contextWindowTokens);
   const effectiveAdvisoryMax = resolveAdvisoryMaxTokensPerFile(
     options.maxTokensPerPackFile,
@@ -283,7 +287,7 @@ export function PackOptions({
 
             <ToggleRow
               label="Minify Markdown"
-              description="Strip badges, HTML comments, div/img/br tags from .md files"
+              description="Strip badges, HTML comments, div/img/br tags from .md and .mdx files"
               checked={options.minifyMarkdown}
               onCheckedChange={(val) => update({ minifyMarkdown: val })}
               disabled={!hasMarkdownFiles}
@@ -337,7 +341,7 @@ export function PackOptions({
               <textarea
                 value={options.customIgnorePatterns}
                 onChange={(e) => update({ customIgnorePatterns: e.target.value })}
-                placeholder={"**/*.test.ts\n**/*.spec.*\n**/__mocks__/**"}
+                placeholder={DEFAULT_CUSTOM_IGNORE_PATTERNS_TEXT}
                 className="w-full h-20 text-[11px] font-mono bg-muted/40 border border-border rounded px-2 py-1.5 resize-none focus:outline-none focus:ring-1 focus:ring-ring focus:bg-background placeholder:text-muted-foreground/40"
               />
             </div>

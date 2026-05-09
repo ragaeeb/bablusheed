@@ -1,5 +1,9 @@
 import { describe, expect, it } from "bun:test";
-import { buildPackFileTokenMap } from "./output-preview";
+import {
+  buildPackFileTokenMap,
+  getPackExportFileExtension,
+  getPackExportFilename,
+} from "./output-preview";
 
 describe("buildPackFileTokenMap", () => {
   it("should use exact provided token values when keys match output file paths", () => {
@@ -85,5 +89,25 @@ describe("buildPackFileTokenMap", () => {
     const out = buildPackFileTokenMap(packs, real);
     expect(out.get("a.ts")).toBe(20);
     expect(out.get("b.ts")).toBe(0);
+  });
+});
+
+describe("getPackExportFileExtension", () => {
+  it("should use markdown extension for markdown output", () => {
+    expect(getPackExportFileExtension("markdown")).toBe("md");
+  });
+
+  it("should use text extension for plaintext output", () => {
+    expect(getPackExportFileExtension("plaintext")).toBe("txt");
+  });
+});
+
+describe("getPackExportFilename", () => {
+  it("should build markdown pack filenames with the correct extension", () => {
+    expect(getPackExportFilename(0, 3, "markdown")).toBe("bablusheed_pack_1_of_3.md");
+  });
+
+  it("should build plaintext pack filenames with the correct extension", () => {
+    expect(getPackExportFilename(1, 2, "plaintext")).toBe("bablusheed_pack_2_of_2.txt");
   });
 });

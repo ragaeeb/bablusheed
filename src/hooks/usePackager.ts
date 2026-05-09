@@ -21,13 +21,17 @@ export function usePackager(
   const [packError, setPackError] = useState<string | null>(null);
   const [packWarnings, setPackWarnings] = useState<string[]>([]);
 
-  const pack = async (options: PackOptions) => {
+  const pack = async (
+    options: PackOptions,
+    contentOverrides?: ReadonlyMap<string, string>,
+  ): Promise<PackResponse | null> => {
     if (selectedFiles.length === 0) {
-      return;
+      return null;
     }
 
     setIsPacking(true);
     setPackError(null);
+    setPackResult(null);
     setPackWarnings([]);
     onLog?.(
       "info",
@@ -35,13 +39,27 @@ export function usePackager(
     );
 
     try {
+      const sourceContents = contentOverrides ?? fileContents;
+      const missingPaths = selectedFiles
+        .filter((file) => !file.isDir)
+        .map((file) => file.path)
+        .filter((path) => !sourceContents.has(path));
+
+      if (missingPaths.length > 0) {
+        const preview = missingPaths.slice(0, 3).join(", ");
+        const overflow = missingPaths.length > 3 ? ` (+${missingPaths.length - 3} more)` : "";
+        const message = `Missing content for ${missingPaths.length} selected file(s): ${preview}${overflow}`;
+        setPackError(message);
+        onLog?.("error", `pack blocked missing-content count=${missingPaths.length}`);
+        return null;
+      }
+
       const rawContentMap = new Map<string, string>();
       for (const file of selectedFiles) {
         if (file.isDir) {
           continue;
         }
-        const rawContent = fileContents.get(file.path) ?? "";
-        rawContentMap.set(file.path, rawContent);
+        rawContentMap.set(file.path, sourceContents.get(file.path) ?? "");
       }
 
       const astProcessedContentMap =
@@ -125,10 +143,12 @@ export function usePackager(
         "info",
         `pack success packs=${result.packs.length} totalTokens=${result.totalTokens}`,
       );
+      return result;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       setPackError(message);
       onLog?.("error", `pack failed err=${message}`);
+      return null;
     } finally {
       setIsPacking(false);
     }

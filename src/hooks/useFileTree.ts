@@ -97,11 +97,14 @@ function getSelectedFiles(nodes: FileTreeNode[]): FileTreeNode[] {
   return result;
 }
 
-function updateTokensInTree(nodes: FileTreeNode[], tokenMap: Map<string, number>): FileTreeNode[] {
+export function applyTokenMapToTree(
+  nodes: FileTreeNode[],
+  tokenMap: Map<string, number>,
+): FileTreeNode[] {
   return nodes.map((node) => ({
     ...node,
-    children: node.children ? updateTokensInTree(node.children, tokenMap) : undefined,
-    tokenCount: tokenMap.get(node.path) ?? node.tokenCount,
+    children: node.children ? applyTokenMapToTree(node.children, tokenMap) : undefined,
+    tokenCount: tokenMap.get(node.path) ?? 0,
   }));
 }
 
@@ -302,7 +305,7 @@ export function useFileTree() {
   };
 
   const updateTokens = (tokenMap: Map<string, number>) => {
-    setRootNodes((prev) => updateTokensInTree(prev, tokenMap));
+    setRootNodes((prev) => applyTokenMapToTree(prev, tokenMap));
   };
 
   const selectAll = (selected: boolean, filteredPaths?: Set<string>) => {

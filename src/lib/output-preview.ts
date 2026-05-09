@@ -1,5 +1,17 @@
 import type { PackItem } from "@/types";
 
+export function getPackExportFileExtension(outputFormat: "plaintext" | "markdown"): "txt" | "md" {
+  return outputFormat === "markdown" ? "md" : "txt";
+}
+
+export function getPackExportFilename(
+  packIndex: number,
+  packCount: number,
+  outputFormat: "plaintext" | "markdown",
+): string {
+  return `bablusheed_pack_${packIndex + 1}_of_${packCount}.${getPackExportFileExtension(outputFormat)}`;
+}
+
 export function buildPackFileTokenMap(
   packs: PackItem[],
   tokenMap?: Map<string, number>,
