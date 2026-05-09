@@ -1,3 +1,10 @@
+## [1.0.3](https://github.com/ragaeeb/bablusheed/compare/v1.0.2...v1.0.3) (2026-05-09)
+
+
+### Bug Fixes
+
+* **tests:** Fix tests not being included ([#21](https://github.com/ragaeeb/bablusheed/issues/21)) ([6152937](https://github.com/ragaeeb/bablusheed/commit/6152937346b226d7a0929314cceaa51ed8c1deff))
+
 ## [1.0.2](https://github.com/ragaeeb/bablusheed/compare/v1.0.1...v1.0.2) (2026-03-02)
 
 
