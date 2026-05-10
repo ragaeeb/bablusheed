@@ -41,8 +41,17 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      - name: Lint
+        run: bun run lint
+
+      - name: Typecheck
+        run: bun run typecheck
+
       - name: Test
         run: bun test --coverage --coverage-reporter=lcov
+
+      - name: Cargo test
+        run: cargo test --manifest-path src-tauri/Cargo.toml
 
       - name: Build frontend
         run: bun run vite:build

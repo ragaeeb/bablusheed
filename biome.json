@@ -1,84 +1,131 @@
 {
-  "$schema": "https://biomejs.dev/schemas/latest/schema.json",
-  "assist": {
-    "actions": {
-      "source": {
-        "organizeImports": "on",
-        "useSortedKeys": {
-          "level": "on",
-          "options": {
-            "sortOrder": "natural"
-          }
+    "$schema": "https://biomejs.dev/schemas/latest/schema.json",
+    "assist": {
+        "actions": {
+            "source": {
+                "organizeImports": "on",
+                "useSortedKeys": {
+                    "level": "on",
+                    "options": {
+                        "sortOrder": "natural"
+                    }
+                }
+            }
         }
-      }
-    }
-  },
-  "css": {
-    "parser": {
-      "cssModules": true,
-      "tailwindDirectives": true
-    }
-  },
-  "files": {
-    "ignoreUnknown": true,
-    "includes": [
-      "src/**",
-      "*.ts",
-      "*.tsx",
-      "*.js",
-      "*.json",
-      "!!**/node_modules",
-      "!!**/dist",
-      "!!**/src-tauri/target",
-      "!!**/src-tauri/gen",
-      "!!**/gen"
-    ]
-  },
-  "formatter": {
-    "enabled": true,
-    "indentStyle": "space",
-    "indentWidth": 2,
-    "lineWidth": 100
-  },
-  "javascript": {
+    },
+    "css": {
+        "parser": {
+            "cssModules": true,
+            "tailwindDirectives": true
+        }
+    },
+    "files": {
+        "ignoreUnknown": true,
+        "includes": [
+            "src/**",
+            "test/**",
+            "!!test/fixtures",
+            "bin/**",
+            "MILESTONES/**",
+            ".github/**",
+            "*.ts",
+            "*.mjs",
+            "*.js",
+            "*.json",
+            "*.md",
+            "!!**/node_modules",
+            "!!**/dist",
+            "!!coverage"
+        ]
+    },
     "formatter": {
-      "quoteStyle": "double",
-      "semicolons": "always",
-      "trailingCommas": "all"
+        "enabled": true,
+        "indentStyle": "space",
+        "indentWidth": 4,
+        "lineWidth": 120
+    },
+    "javascript": {
+        "formatter": {
+            "arrowParentheses": "always",
+            "bracketSameLine": false,
+            "bracketSpacing": true,
+            "quoteStyle": "single",
+            "semicolons": "always",
+            "trailingCommas": "all"
+        }
+    },
+    "json": {
+        "formatter": {
+            "enabled": true
+        }
+    },
+    "linter": {
+        "enabled": true,
+        "rules": {
+            "complexity": {
+                "noExcessiveCognitiveComplexity": "warn",
+                "useArrowFunction": "warn"
+            },
+            "correctness": {
+                "noUnusedImports": {
+                    "fix": "safe",
+                    "level": "warn",
+                    "options": {}
+                }
+            },
+            "nursery": {
+                "noExcessiveLinesPerFile": "off",
+                "useSortedClasses": {
+                    "fix": "unsafe",
+                    "level": "on"
+                }
+            },
+            "recommended": true,
+            "style": {
+                "noInferrableTypes": "warn",
+                "noNonNullAssertion": "off",
+                "noRestrictedImports": {
+                    "level": "error",
+                    "options": {
+                        "paths": {
+                            "bun:test": {
+                                "importNames": ["test"],
+                                "message": "Import 'test' from 'bun:test' instead of a generic 'test' module."
+                            }
+                        }
+                    }
+                },
+                "useBlockStatements": {
+                    "fix": "safe",
+                    "level": "warn",
+                    "options": {}
+                },
+                "useConsistentTypeDefinitions": {
+                    "fix": "safe",
+                    "level": "warn",
+                    "options": {
+                        "style": "type"
+                    }
+                },
+                "useImportType": {
+                    "fix": "safe",
+                    "level": "error",
+                    "options": {}
+                },
+                "useTemplate": "off"
+            },
+            "suspicious": {
+                "noAssignInExpressions": "off",
+                "noConsole": "off",
+                "noControlCharactersInRegex": "off",
+                "noExplicitAny": "off",
+                "noTemplateCurlyInString": "off"
+            }
+        }
+    },
+    "vcs": {
+        "clientKind": "git",
+        "enabled": true,
+        "useIgnoreFile": true
     }
-  },
-  "json": {
-    "formatter": {
-      "enabled": true
-    }
-  },
-  "linter": {
-    "enabled": true,
-    "rules": {
-      "complexity": {
-        "noExcessiveCognitiveComplexity": "off"
-      },
-      "nursery": {
-        "useSortedClasses": "off"
-      },
-      "recommended": true,
-      "style": {
-        "useBlockStatements": {
-          "fix": "safe",
-          "level": "warn",
-          "options": {}
-        },
-        "useImportType": "error",
-        "useTemplate": "off"
-      },
-      "suspicious": {
-        "noExplicitAny": "error"
-      }
-    }
-  },
-  "vcs": {
-    "clientKind": "git",
-    "enabled": true,
-    "useIgnoreFile": true
-  }
 }

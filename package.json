@@ -1,94 +1,92 @@
 {
-  "author": {
-    "name": "Ragaeeb Haq",
-    "url": "https://github.com/ragaeeb"
-  },
-  "bugs": {
-    "url": "https://github.com/ragaeeb/bablusheed/issues"
-  },
-  "contributors": [
-    {
-      "name": "Ragaeeb Haq",
-      "url": "https://github.com/ragaeeb"
-    }
-  ],
-  "dependencies": {
-    "@base-ui/react": "^1.4.1",
-    "@tanstack/react-virtual": "^3.13.24",
-    "@tauri-apps/api": "2.11.0",
-    "@tauri-apps/plugin-clipboard-manager": "^2.3.2",
-    "@tauri-apps/plugin-dialog": "2.7.1",
-    "@tauri-apps/plugin-fs": "2.5.1",
-    "@tauri-apps/plugin-opener": "^2.5.4",
-    "@tauri-apps/plugin-store": "^2.4.3",
-    "class-variance-authority": "^0.7.1",
-    "clsx": "^2.1.1",
-    "js-tiktoken": "^1.0.21",
-    "lucide-react": "^1.14.0",
-    "react": "^19.2.6",
-    "react-dom": "^19.2.6",
-    "tailwind-merge": "^3.5.0"
-  },
-  "description": "Tauri desktop app that packs project files into token-aware, LLM-friendly bundles.",
-  "devDependencies": {
-    "@biomejs/biome": "^2.4.14",
-    "@commitlint/config-conventional": "^21.0.0",
-    "@semantic-release/changelog": "^6.0.3",
-    "@semantic-release/commit-analyzer": "^13.0.1",
-    "@semantic-release/exec": "^7.1.0",
-    "@semantic-release/git": "^10.0.1",
-    "@semantic-release/github": "^12.0.8",
-    "@semantic-release/release-notes-generator": "^14.1.1",
-    "@tailwindcss/vite": "^4.3.0",
-    "@tauri-apps/cli": "^2.11.1",
-    "@types/node": "^25.6.2",
-    "@types/react": "^19.2.14",
-    "@types/react-dom": "^19.2.3",
-    "@vitejs/plugin-react": "^6.0.1",
-    "babel-plugin-react-compiler": "^1.0.0",
-    "semantic-release": "^25.0.3",
-    "tailwindcss": "^4.3.0",
-    "typescript": "~6.0.3",
-    "vite": "^8.0.11"
-  },
-  "engines": {
-    "bun": ">=1.3.13",
-    "node": ">=25.0.0"
-  },
-  "homepage": "https://github.com/ragaeeb/bablusheed",
-  "keywords": [
-    "tauri",
-    "react",
-    "llm",
-    "tokenizer",
-    "prompt-engineering",
-    "code-packer"
-  ],
-  "license": "MIT",
-  "name": "bablusheed",
-  "packageManager": "bun@1.3.13",
-  "private": true,
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/ragaeeb/bablusheed.git"
-  },
-  "scripts": {
-    "build": "tauri build",
-    "ci": "bun test && bun run vite:build && cargo check --manifest-path src-tauri/Cargo.toml",
-    "dev": "tauri dev",
-    "format": "biome format .",
-    "format:fix": "biome format --write .",
-    "lint": "biome lint .",
-    "lint:fix": "biome lint --write .",
-    "preview": "vite preview",
-    "release": "semantic-release",
-    "sync:icons": "bun scripts/sync-icons.ts",
-    "sync:version": "node scripts/sync-version.mjs",
-    "tauri": "tauri",
-    "test": "bun test",
-    "vite:build": "tsc && vite build",
-    "vite:dev": "vite"
-  },
-  "type": "module",
-  "version": "1.0.3"
+    "author": {
+        "name": "Ragaeeb Haq",
+        "url": "https://github.com/ragaeeb"
+    },
+    "bugs": {
+        "url": "https://github.com/ragaeeb/bablusheed/issues"
+    },
+    "contributors": [
+        {
+            "name": "Ragaeeb Haq",
+            "url": "https://github.com/ragaeeb"
+        }
+    ],
+    "dependencies": {
+        "@base-ui/react": "^1.4.1",
+        "@tanstack/react-virtual": "^3.13.24",
+        "@tauri-apps/api": "2.11.0",
+        "@tauri-apps/plugin-clipboard-manager": "^2.3.2",
+        "@tauri-apps/plugin-dialog": "2.7.1",
+        "@tauri-apps/plugin-fs": "2.5.1",
+        "@tauri-apps/plugin-opener": "^2.5.4",
+        "@tauri-apps/plugin-store": "^2.4.3",
+        "class-variance-authority": "^0.7.1",
+        "clsx": "^2.1.1",
+        "js-tiktoken": "^1.0.21",
+        "lucide-react": "^1.14.0",
+        "react": "^19.2.6",
+        "react-dom": "^19.2.6",
+        "tailwind-merge": "^3.5.0"
+    },
+    "description": "Tauri desktop app that packs project files into token-aware, LLM-friendly bundles.",
+    "devDependencies": {
+        "@biomejs/biome": "^2.4.14",
+        "@commitlint/config-conventional": "^21.0.0",
+        "@semantic-release/changelog": "^6.0.3",
+        "@semantic-release/commit-analyzer": "^13.0.1",
+        "@semantic-release/exec": "^7.1.0",
+        "@semantic-release/git": "^10.0.1",
+        "@semantic-release/github": "^12.0.8",
+        "@semantic-release/release-notes-generator": "^14.1.1",
+        "@tailwindcss/vite": "^4.3.0",
+        "@tauri-apps/cli": "^2.11.1",
+        "@types/node": "^25.6.2",
+        "@types/react": "^19.2.14",
+        "@types/react-dom": "^19.2.3",
+        "@vitejs/plugin-react": "^6.0.1",
+        "babel-plugin-react-compiler": "^1.0.0",
+        "semantic-release": "^25.0.3",
+        "tailwindcss": "^4.3.0",
+        "typescript": "~6.0.3",
+        "vite": "^8.0.11"
+    },
+    "engines": {
+        "bun": ">=1.3.13",
+        "node": ">=25.0.0"
+    },
+    "homepage": "https://github.com/ragaeeb/bablusheed",
+    "keywords": [
+        "tauri",
+        "react",
+        "llm",
+        "tokenizer",
+        "prompt-engineering",
+        "code-packer"
+    ],
+    "license": "MIT",
+    "name": "bablusheed",
+    "packageManager": "bun@1.3.13",
+    "private": true,
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/ragaeeb/bablusheed.git"
+    },
+    "scripts": {
+        "build": "tauri build",
+        "ci": "bun run lint && bun run typecheck && bun test && cargo test --manifest-path src-tauri/Cargo.toml && bun run vite:build && cargo check --manifest-path src-tauri/Cargo.toml",
+        "dev": "tauri dev",
+        "format": "biome check . --write && biome lint . --write",
+        "lint": "biome lint . --write --unsafe",
+        "preview": "vite preview",
+        "release": "semantic-release",
+        "sync:icons": "bun scripts/sync-icons.ts",
+        "sync:version": "node scripts/sync-version.mjs",
+        "tauri": "tauri",
+        "typecheck": "tsc -p tsconfig.typecheck.json",
+        "vite:build": "tsc && vite build",
+        "vite:dev": "vite"
+    },
+    "type": "module",
+    "version": "1.0.4"
 }

@@ -33,17 +33,13 @@ fn format_file_header(path: &str, content: &str, format: &str) -> String {
                 "sh" | "bash" => "bash",
                 _ => "text",
             };
-            format!("```{lang}\n// {path}\n{content}\n```")
+            format!("**{path}**\n```{lang}\n{content}\n```")
         }
         _ => {
             // plaintext
             format!("// {path}\n{content}")
         }
     }
-}
-
-fn wrap_pack(content: &str) -> String {
-    content.to_string()
 }
 
 fn normalize_path(path: &str) -> String {
@@ -564,8 +560,7 @@ pub async fn pack_files(request: PackRequest) -> Result<PackResponse, String> {
         }
 
         let separator = "\n\n";
-        let inner = pack_content_parts.join(separator);
-        let content = wrap_pack(&inner);
+        let content = pack_content_parts.join(separator);
 
         packs.push(PackItem {
             index: i,
@@ -824,10 +819,16 @@ import bar from "../bar";
     #[test]
     fn format_markdown_wraps_in_code_block() {
         let result = format_file_header("src/main.ts", "const x = 1;", "markdown");
-        assert!(result.starts_with("```typescript"));
-        assert!(result.contains("// src/main.ts"));
+        assert!(result.starts_with("**src/main.ts**\n```typescript"));
         assert!(result.contains("const x = 1;"));
         assert!(result.ends_with("```"));
+    }
+
+    #[test]
+    fn format_markdown_does_not_inject_slash_comments_into_content() {
+        let result = format_file_header("README.md", "# Title", "markdown");
+        assert!(result.starts_with("**README.md**\n```markdown"));
+        assert!(!result.contains("// README.md"));
     }
 
     #[test]
@@ -851,7 +852,7 @@ import bar from "../bar";
         ];
         for (path, expected_lang) in cases {
             let result = format_file_header(path, "", "markdown");
-            assert!(result.starts_with(&format!("```{expected_lang}")), "expected {expected_lang} for {path}, got: {result}");
+            assert!(result.contains(&format!("\n```{expected_lang}")), "expected {expected_lang} for {path}, got: {result}");
         }
     }
 

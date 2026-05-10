@@ -80,6 +80,7 @@ bun dev
 ```bash
 bun run ci
 bun run lint
+bun typecheck
 bun run vite:build
 cargo test --manifest-path src-tauri/Cargo.toml
 ```
@@ -89,6 +90,21 @@ cargo test --manifest-path src-tauri/Cargo.toml
 - Unit tests use `bun:test`
 - Tests are colocated next to implementations (e.g. `src/lib/*.test.ts`)
 - Recent regression coverage includes AST dead-code stripping and pack token mapping
+
+## File Access Scope
+
+- The app only reads project files from folders that the user explicitly opens.
+- Export writes are limited to directories the user explicitly chooses during export.
+- The backend remembers authorized project/export roots for the current session so follow-up reads and writes can be validated against those roots.
+
+## Updating LLM Profiles
+
+When adding or changing a profile in `src/lib/llm-profiles.ts`:
+
+1. Add the profile entry with the correct `contextWindowTokens`, `maxFileAttachments`, and `tokenizer`.
+2. Use `"o200k"` only for profiles that should be counted with the exact `o200k_base` tokenizer in the worker.
+3. Use `"approx"` for profiles that should keep the rough character-based estimate.
+4. Run `bun test src/lib/llm-profiles.test.ts` and `bun typecheck` after the change.
 
 ## Release & Versioning
 

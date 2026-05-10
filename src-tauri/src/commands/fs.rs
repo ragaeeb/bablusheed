@@ -27,6 +27,7 @@ const ALWAYS_EXCLUDED_DIRS: &[&str] = &[
     ".turbo",
     ".cache",
 ];
+const MAX_REMEMBERED_SCOPE_ROOTS: usize = 32;
 
 #[derive(Default)]
 struct FsScopeState {
@@ -68,17 +69,26 @@ fn canonicalize_for_write(path: &Path) -> Result<PathBuf, String> {
 
 fn remember_project_root(root: PathBuf) {
     if let Ok(mut state) = FS_SCOPE_STATE.lock()
-        && !state.project_roots.iter().any(|existing| existing == &root)
     {
-        state.project_roots.push(root);
+        remember_scope_root(&mut state.project_roots, root);
     }
 }
 
 fn remember_export_root(root: PathBuf) {
     if let Ok(mut state) = FS_SCOPE_STATE.lock()
-        && !state.export_roots.iter().any(|existing| existing == &root)
     {
-        state.export_roots.push(root);
+        remember_scope_root(&mut state.export_roots, root);
+    }
+}
+
+fn remember_scope_root(roots: &mut Vec<PathBuf>, root: PathBuf) {
+    if roots.iter().any(|existing| existing == &root) {
+        return;
+    }
+    roots.push(root);
+    if roots.len() > MAX_REMEMBERED_SCOPE_ROOTS {
+        let overflow = roots.len() - MAX_REMEMBERED_SCOPE_ROOTS;
+        roots.drain(0..overflow);
     }
 }
 
@@ -395,6 +405,26 @@ mod tests {
         assert!(!should_exclude_dir("lib"));
         assert!(!should_exclude_dir("components"));
         assert!(!should_exclude_dir("tests"));
+    }
+
+    #[test]
+    fn remember_scope_root_deduplicates_entries() {
+        let mut roots = vec![PathBuf::from("/tmp/project-a")];
+        remember_scope_root(&mut roots, PathBuf::from("/tmp/project-a"));
+        assert_eq!(roots, vec![PathBuf::from("/tmp/project-a")]);
+    }
+
+    #[test]
+    fn remember_scope_root_caps_tracked_roots() {
+        let mut roots = (0..MAX_REMEMBERED_SCOPE_ROOTS)
+            .map(|idx| PathBuf::from(format!("/tmp/project-{idx}")))
+            .collect::<Vec<_>>();
+
+        remember_scope_root(&mut roots, PathBuf::from("/tmp/project-extra"));
+
+        assert_eq!(roots.len(), MAX_REMEMBERED_SCOPE_ROOTS);
+        assert!(!roots.iter().any(|root| root == &PathBuf::from("/tmp/project-0")));
+        assert!(roots.iter().any(|root| root == &PathBuf::from("/tmp/project-extra")));
     }
 
     // ── canonicalize_for_write ──

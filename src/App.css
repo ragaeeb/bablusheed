@@ -2,30 +2,30 @@
 
 /* Ensure proper font rendering */
 :root {
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-text-size-adjust: 100%;
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-text-size-adjust: 100%;
 }
 
 /* IDE-style panel borders */
 .panel-border-r {
-  border-right: 1px solid hsl(var(--border));
+    border-right: 1px solid hsl(var(--border));
 }
 
 /* Compact section headers */
 .section-header {
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: hsl(var(--muted-foreground));
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: hsl(var(--muted-foreground));
 }
 
 /* Smooth hover states */
 .hover-row {
-  transition: background-color 80ms ease;
+    transition: background-color 80ms ease;
 }
 
 .hover-row:hover {
-  background-color: hsl(var(--muted) / 0.6);
+    background-color: hsl(var(--muted) / 0.6);
 }
