@@ -43,12 +43,15 @@ const Slider = React.forwardRef<HTMLDivElement, SliderProps>(
                     <SliderPrimitive.Track className="relative h-1.5 w-full grow overflow-hidden rounded-full bg-primary/20">
                         <SliderPrimitive.Indicator className="absolute h-full bg-primary" />
                     </SliderPrimitive.Track>
-                    {Array.from({ length: thumbCount }).map((_, index) => (
-                        <SliderPrimitive.Thumb
-                            key={`thumb-${index.toString()}`}
-                            className="block h-4 w-4 rounded-full border border-primary/50 bg-background shadow transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
-                        />
-                    ))}
+                    {Array.from({ length: thumbCount }).map((_, index) => {
+                        const thumbValue = value?.[index] ?? defaultValue?.[index] ?? min + index * step;
+                        return (
+                            <SliderPrimitive.Thumb
+                                key={`thumb-${thumbValue}`}
+                                className="block h-4 w-4 rounded-full border border-primary/50 bg-background shadow transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
+                            />
+                        );
+                    })}
                 </SliderPrimitive.Control>
             </SliderPrimitive.Root>
         );

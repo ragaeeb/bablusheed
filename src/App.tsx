@@ -2,7 +2,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { dirname } from '@tauri-apps/api/path';
 import { open, save } from '@tauri-apps/plugin-dialog';
-import { load } from '@tauri-apps/plugin-store';
+import type { load } from '@tauri-apps/plugin-store';
 import { Download, FolderOpen, Loader2, Moon, Package2, Sun, Trash2, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { EmptyState } from '@/components/EmptyState';
@@ -14,12 +14,15 @@ import { PackOptions } from '@/components/PackOptions';
 import { TokenBar } from '@/components/TokenBar';
 import { TopHeavyFiles } from '@/components/TopHeavyFiles';
 import { TooltipProvider } from '@/components/ui/tooltip';
+import { isLogLevel, useAppDiagnostics } from '@/hooks/useAppDiagnostics';
+import { useAppSettingsSync } from '@/hooks/useAppSettingsSync';
 import { useFileTree } from '@/hooks/useFileTree';
 import { usePackager } from '@/hooks/usePackager';
 import { useTokenCount } from '@/hooks/useTokenCount';
+import { findNodeByPath, loadProjectContents } from '@/lib/app-helpers';
 import { getFileTreeProjectKey } from '@/lib/file-tree-view';
 import { getProfile } from '@/lib/llm-profiles';
-import { DEFAULT_CUSTOM_IGNORE_PATTERNS_TEXT, normalizeSavedPackOptions } from '@/lib/pack-options';
+import { DEFAULT_CUSTOM_IGNORE_PATTERNS_TEXT } from '@/lib/pack-options';
 import {
     buildOversizedFilesWarning,
     findOversizedFiles,
@@ -114,37 +117,11 @@ function StepIndicator({ step, currentStep }: { step: WorkflowStep; currentStep:
     );
 }
 
-type DebugLiveMetrics = {
-    appRendersPerMin: number;
-    fileTreeRendersPerMin: number;
-    outputPreviewRendersPerMin: number;
-    astRecomputeCount: number;
-    astCacheHitCount: number;
-    workerQueuedCount: number;
-    workerResultCount: number;
-};
-
-type LogLevel = 'off' | 'error' | 'info' | 'debug';
-
-const LOG_LEVEL_WEIGHT: Record<LogLevel, number> = {
-    debug: 3,
-    error: 1,
-    info: 2,
-    off: 0,
-};
-
-function isLogLevel(value: unknown): value is LogLevel {
-    return value === 'off' || value === 'error' || value === 'info' || value === 'debug';
-}
-
-function shouldCaptureLog(level: LogLevel, incoming: 'error' | 'info' | 'debug'): boolean {
-    return LOG_LEVEL_WEIGHT[level] >= LOG_LEVEL_WEIGHT[incoming];
-}
-
 function hasTauriRuntime(): boolean {
     return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: App intentionally composes multiple extracted controllers and UI panes; further decomposition here would mainly increase prop-drilling.
 export default function App() {
     const [theme, setTheme] = useState<'dark' | 'light'>('light');
     const [projectPath, setProjectPath] = useState<string | null>(null);
@@ -161,38 +138,27 @@ export default function App() {
     // 3l: Last project path for reopen
     const [lastProjectPath, setLastProjectPath] = useState<string | null>(null);
     const [lastProjectName, setLastProjectName] = useState<string | null>(null);
-    const [logLevel, setLogLevel] = useState<LogLevel>('error');
-    const [debugLogs, setDebugLogs] = useState<string[]>([]);
     const [fileTreeLoadRevision, setFileTreeLoadRevision] = useState(0);
     const [hasManualNumPacksOverride, setHasManualNumPacksOverride] = useState(false);
     const [lastPackedFingerprint, setLastPackedFingerprint] = useState<string | null>(null);
-    const [debugLiveMetrics, setDebugLiveMetrics] = useState<DebugLiveMetrics>({
-        appRendersPerMin: 0,
-        astCacheHitCount: 0,
-        astRecomputeCount: 0,
-        fileTreeRendersPerMin: 0,
-        outputPreviewRendersPerMin: 0,
-        workerQueuedCount: 0,
-        workerResultCount: 0,
-    });
 
     const storeRef = useRef<Awaited<ReturnType<typeof load>> | null>(null);
     const loadProjectRef = useRef<(folderPath: string) => Promise<void>>(async () => {});
-    const logLevelRef = useRef<LogLevel>('error');
     const lastRequestedPackFingerprintRef = useRef<string | null>(null);
     const currentPackFingerprintRef = useRef<string>('');
     const fileContentsRef = useRef(fileContents);
-    const renderSamplesRef = useRef<Record<string, number[]>>({
-        App: [],
-        FileTree: [],
-        OutputPreview: [],
-    });
-    const debugMetricCountsRef = useRef({
-        astCacheHit: 0,
-        astRecompute: 0,
-        workerQueued: 0,
-        workerResult: 0,
-    });
+    const {
+        appendDebugLog,
+        appendLog,
+        appendRenderSample,
+        debugLiveMetrics,
+        debugLogging,
+        debugLogs,
+        incrementDebugMetric,
+        logLevel,
+        setDebugLogs,
+        setLogLevel,
+    } = useAppDiagnostics();
 
     // 3i: Stable refs for gitignore/patterns to avoid loadProject recreation
     const gitignoreRef = useRef(packOptions.respectGitignore);
@@ -225,44 +191,6 @@ export default function App() {
     } = useFileTree();
 
     const llmProfile = getProfile(selectedLlmId);
-    const debugLogging = logLevel === 'debug';
-    const appendLog = useCallback((level: 'error' | 'info' | 'debug', message: string) => {
-        if (!shouldCaptureLog(logLevelRef.current, level)) {
-            return;
-        }
-        const line = `[${new Date().toISOString()}] [${level}] ${message}`;
-        setDebugLogs((prev) => {
-            const next = [...prev, line];
-            return next.length > 5000 ? next.slice(next.length - 5000) : next;
-        });
-    }, []);
-    const appendDebugLog = useCallback((line: string) => {
-        if (!shouldCaptureLog(logLevelRef.current, 'debug')) {
-            return;
-        }
-        const match = line.match(/^\[([^\]]+)\]\s*(.*)$/);
-        const normalized = match
-            ? `[${match[1]}] [debug] ${match[2]}`
-            : `[${new Date().toISOString()}] [debug] ${line}`;
-        setDebugLogs((prev) => {
-            const next = [...prev, normalized];
-            return next.length > 5000 ? next.slice(next.length - 5000) : next;
-        });
-    }, []);
-    const appendRenderSample = (component: string, timestampMs: number) => {
-        if (!debugLogging) {
-            return;
-        }
-        const bucket = renderSamplesRef.current[component] ?? [];
-        bucket.push(timestampMs);
-        renderSamplesRef.current[component] = bucket;
-    };
-    const incrementDebugMetric = (name: 'astRecompute' | 'astCacheHit' | 'workerQueued' | 'workerResult') => {
-        if (!debugLogging) {
-            return;
-        }
-        debugMetricCountsRef.current[name] += 1;
-    };
 
     useRenderDiagnostics({
         component: 'App',
@@ -293,55 +221,6 @@ export default function App() {
         incrementDebugMetric,
         appendLog,
     );
-
-    useEffect(() => {
-        logLevelRef.current = logLevel;
-    }, [logLevel]);
-
-    useEffect(() => {
-        if (!debugLogging) {
-            renderSamplesRef.current = { App: [], FileTree: [], OutputPreview: [] };
-            debugMetricCountsRef.current = {
-                astCacheHit: 0,
-                astRecompute: 0,
-                workerQueued: 0,
-                workerResult: 0,
-            };
-            setDebugLiveMetrics({
-                appRendersPerMin: 0,
-                astCacheHitCount: 0,
-                astRecomputeCount: 0,
-                fileTreeRendersPerMin: 0,
-                outputPreviewRendersPerMin: 0,
-                workerQueuedCount: 0,
-                workerResultCount: 0,
-            });
-            return;
-        }
-
-        const timer = setInterval(() => {
-            const now = Date.now();
-            const cutoff = now - 60_000;
-            const appSamples = renderSamplesRef.current.App.filter((t) => t >= cutoff);
-            const treeSamples = renderSamplesRef.current.FileTree.filter((t) => t >= cutoff);
-            const previewSamples = renderSamplesRef.current.OutputPreview.filter((t) => t >= cutoff);
-            renderSamplesRef.current.App = appSamples;
-            renderSamplesRef.current.FileTree = treeSamples;
-            renderSamplesRef.current.OutputPreview = previewSamples;
-
-            setDebugLiveMetrics({
-                appRendersPerMin: appSamples.length,
-                astCacheHitCount: debugMetricCountsRef.current.astCacheHit,
-                astRecomputeCount: debugMetricCountsRef.current.astRecompute,
-                fileTreeRendersPerMin: treeSamples.length,
-                outputPreviewRendersPerMin: previewSamples.length,
-                workerQueuedCount: debugMetricCountsRef.current.workerQueued,
-                workerResultCount: debugMetricCountsRef.current.workerResult,
-            });
-        }, 1000);
-
-        return () => clearInterval(timer);
-    }, [debugLogging]);
 
     const { packResult, isPacking, packError, packWarnings, pack, clearResult } = usePackager(
         selectedFiles,
@@ -419,48 +298,22 @@ export default function App() {
         updateTokens(tokenMap);
     }, [tokenMap, updateTokens]);
 
-    // Load settings from store on startup
-    useEffect(() => {
-        if (!hasTauriRuntime()) {
-            return;
-        }
-        async function loadSettings() {
-            try {
-                const store = await load('settings.json');
-                storeRef.current = store;
-
-                const savedTheme = await store.get<'dark' | 'light'>('theme');
-                const savedLlmId = await store.get<string>('lastLlmProfileId');
-                const savedPackOptions = await store.get<PackOptionsType>('packOptions');
-                const savedLogLevel = await store.get<LogLevel>('logLevel');
-                const legacyDebugLogging = await store.get<boolean>('debugLogging');
-                const savedLastPath = await store.get<string>('lastProjectPath');
-
-                if (savedTheme) {
-                    setTheme(savedTheme);
-                }
-                if (savedLlmId) {
-                    setSelectedLlmId(savedLlmId);
-                }
-                if (isLogLevel(savedLogLevel)) {
-                    setLogLevel(savedLogLevel);
-                } else if (legacyDebugLogging) {
-                    setLogLevel('debug');
-                }
-                if (savedPackOptions) {
-                    setPackOptions(normalizeSavedPackOptions(savedPackOptions, DEFAULT_PACK_OPTIONS));
-                }
-                if (savedLastPath) {
-                    setLastProjectPath(savedLastPath);
-                    const parts = savedLastPath.replace(/\\/g, '/').split('/');
-                    setLastProjectName(parts[parts.length - 1] ?? savedLastPath);
-                }
-            } catch (err) {
-                console.warn('Failed to load settings:', err);
-            }
-        }
-        loadSettings();
-    }, []);
+    useAppSettingsSync({
+        defaults: DEFAULT_PACK_OPTIONS,
+        hasTauriRuntime: hasTauriRuntime(),
+        lastProjectNameSetter: setLastProjectName,
+        lastProjectPathSetter: setLastProjectPath,
+        llmId: selectedLlmId,
+        logLevel,
+        logLevelGuard: isLogLevel,
+        logLevelSetter: setLogLevel,
+        packOptions,
+        packOptionsSetter: setPackOptions,
+        selectedLlmIdSetter: setSelectedLlmId,
+        storeRef,
+        theme,
+        themeSetter: setTheme,
+    });
 
     // Apply theme class to root element
     useEffect(() => {
@@ -471,25 +324,6 @@ export default function App() {
             root.classList.remove('dark');
         }
     }, [theme]);
-
-    // 3k: Save settings with 1500ms debounce; don't save projectPath here
-    useEffect(() => {
-        const timer = setTimeout(async () => {
-            if (!storeRef.current) {
-                return;
-            }
-            try {
-                await storeRef.current.set('theme', theme);
-                await storeRef.current.set('lastLlmProfileId', selectedLlmId);
-                await storeRef.current.set('packOptions', packOptions);
-                await storeRef.current.set('logLevel', logLevel);
-                await storeRef.current.save();
-            } catch (err) {
-                console.warn('Failed to save settings:', err);
-            }
-        }, 1500);
-        return () => clearTimeout(timer);
-    }, [theme, selectedLlmId, packOptions, logLevel]);
 
     const readProjectFile = useCallback(
         async (path: string): Promise<string> => invoke<string>('read_file_content', { path }),
@@ -614,25 +448,9 @@ export default function App() {
             const totalFileCount = countNodes(nodes);
             appendLog('info', `project-load tree-ready path=${folderPath} files=${totalFileCount}`);
             if (totalFileCount < 50) {
-                const contentMap = new Map<string, string>();
-
-                async function loadContents(nodeList: FileNode[]) {
-                    const promises = nodeList.map(async (node) => {
-                        if (node.isDir && node.children) {
-                            await loadContents(node.children);
-                        } else if (!node.isDir) {
-                            try {
-                                const content = await readProjectFile(node.path);
-                                contentMap.set(node.path, content);
-                            } catch (err) {
-                                appendLog('error', `project-preload failed path=${node.path} err=${String(err)}`);
-                            }
-                        }
-                    });
-                    await Promise.all(promises);
-                }
-
-                await loadContents(nodes);
+                const contentMap = await loadProjectContents(nodes, readProjectFile, (path, error) => {
+                    appendLog('error', `project-preload failed path=${path} err=${String(error)}`);
+                });
                 setFileContents(contentMap);
             } else {
                 setFileContents(new Map());
@@ -853,21 +671,7 @@ export default function App() {
         if (!previewPath) {
             return null;
         }
-        function findNode(nodes: typeof rootNodes): (typeof rootNodes)[0] | null {
-            for (const n of nodes) {
-                if (n.path === previewPath) {
-                    return n;
-                }
-                if (n.children) {
-                    const found = findNode(n.children);
-                    if (found) {
-                        return found;
-                    }
-                }
-            }
-            return null;
-        }
-        return findNode(rootNodes);
+        return findNodeByPath(rootNodes, previewPath);
     }, [previewPath, rootNodes]);
 
     // 2e: Deselect heaviest N files

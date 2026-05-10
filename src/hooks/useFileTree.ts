@@ -227,31 +227,63 @@ function isDocFile(node: FileTreeNode): boolean {
     return DOC_EXTENSIONS.has(node.extension.toLowerCase());
 }
 
+function getQuickFilterMatch(node: FileTreeNode, filter: QuickFilter): boolean {
+    switch (filter) {
+        case 'source':
+            return isSourceFile(node);
+        case 'tests':
+            return isTestFile(node);
+        case 'config':
+            return isConfigFile(node);
+        case 'docs':
+            return isDocFile(node);
+        default:
+            return false;
+    }
+}
+
+function getDirectoryCheckStateForFilter(
+    node: FileTreeNode,
+    filter: QuickFilter,
+    updatedChildren?: FileTreeNode[],
+): CheckState {
+    if (updatedChildren) {
+        return computeParentState(updatedChildren);
+    }
+    return filter === 'clear' ? 'unchecked' : node.checkState;
+}
+
 export function quickSelectInTree(nodes: FileTreeNode[], filter: QuickFilter): FileTreeNode[] {
     return nodes.map((node) => {
         if (node.isDir) {
             const updatedChildren = node.children ? quickSelectInTree(node.children, filter) : undefined;
-            const childState = updatedChildren ? computeParentState(updatedChildren) : node.checkState;
-            return { ...node, checkState: childState, children: updatedChildren };
+            return {
+                ...node,
+                checkState: getDirectoryCheckStateForFilter(node, filter, updatedChildren),
+                children: updatedChildren,
+            };
         }
 
         if (filter === 'clear') {
             return { ...node, checkState: 'unchecked' };
         }
-
-        let shouldSelect = false;
-        if (filter === 'source') {
-            shouldSelect = isSourceFile(node);
-        } else if (filter === 'tests') {
-            shouldSelect = isTestFile(node);
-        } else if (filter === 'config') {
-            shouldSelect = isConfigFile(node);
-        } else if (filter === 'docs') {
-            shouldSelect = isDocFile(node);
-        }
-
-        return { ...node, checkState: shouldSelect ? 'checked' : 'unchecked' };
+        return { ...node, checkState: getQuickFilterMatch(node, filter) ? 'checked' : 'unchecked' };
     });
+}
+
+function findNodeById(nodes: FileTreeNode[], nodeId: string): FileTreeNode | undefined {
+    for (const node of nodes) {
+        if (node.id === nodeId) {
+            return node;
+        }
+        if (node.children) {
+            const found = findNodeById(node.children, nodeId);
+            if (found) {
+                return found;
+            }
+        }
+    }
+    return undefined;
 }
 
 function filterNodesByQuery(nodes: FileTreeNode[], query: string): FileTreeNode[] {
@@ -280,21 +312,7 @@ export function useFileTree() {
 
     const toggleCheck = useCallback((nodeId: string) => {
         setRootNodes((prev) => {
-            const findNode = (nodes: FileTreeNode[]): FileTreeNode | undefined => {
-                for (const n of nodes) {
-                    if (n.id === nodeId) {
-                        return n;
-                    }
-                    if (n.children) {
-                        const found = findNode(n.children);
-                        if (found) {
-                            return found;
-                        }
-                    }
-                }
-                return undefined;
-            };
-            const node = findNode(prev);
+            const node = findNodeById(prev, nodeId);
             const newState = node?.checkState === 'checked' ? 'unchecked' : 'checked';
             return updateCheckStateInTree(prev, nodeId, newState);
         });

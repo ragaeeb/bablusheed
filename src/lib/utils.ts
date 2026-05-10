@@ -179,12 +179,75 @@ function findDashCommentStart(line: string): number {
     return -1;
 }
 
+type CStyleCommentState = {
+    inSingle: boolean;
+    inDouble: boolean;
+    inTemplate: boolean;
+    inBlockComment: boolean;
+    out: string;
+};
+
+function appendCharacter(state: CStyleCommentState, char: string) {
+    state.out += char;
+}
+
+function toggleStringState(state: CStyleCommentState, char: string, isEscaped: boolean) {
+    if (char === "'" && !state.inDouble && !state.inTemplate && !isEscaped) {
+        state.inSingle = !state.inSingle;
+    } else if (char === '"' && !state.inSingle && !state.inTemplate && !isEscaped) {
+        state.inDouble = !state.inDouble;
+    } else if (char === '`' && !state.inSingle && !state.inDouble && !isEscaped) {
+        state.inTemplate = !state.inTemplate;
+    }
+}
+
+function isOutsideStringState(state: CStyleCommentState) {
+    return !state.inSingle && !state.inDouble && !state.inTemplate;
+}
+
+function handleActiveBlockComment(state: CStyleCommentState, current: string, next: string): number {
+    if (current === '*' && next === '/') {
+        state.inBlockComment = false;
+        return 2;
+    }
+    if (current === '\n') {
+        appendCharacter(state, '\n');
+    }
+    return 1;
+}
+
+function handleCommentStart(
+    state: CStyleCommentState,
+    current: string,
+    next: string,
+    content: string,
+    index: number,
+): number {
+    if (!isOutsideStringState(state)) {
+        return 0;
+    }
+    if (current === '/' && next === '*') {
+        state.inBlockComment = true;
+        return 2;
+    }
+    if (current === '/' && next === '/') {
+        let cursor = index + 2;
+        while (cursor < content.length && content[cursor] !== '\n') {
+            cursor += 1;
+        }
+        return cursor - index;
+    }
+    return 0;
+}
+
 function stripCStyleComments(content: string): string {
-    let out = '';
-    let inSingle = false;
-    let inDouble = false;
-    let inTemplate = false;
-    let inBlockComment = false;
+    const state: CStyleCommentState = {
+        inBlockComment: false,
+        inDouble: false,
+        inSingle: false,
+        inTemplate: false,
+        out: '',
+    };
     let i = 0;
 
     while (i < content.length) {
@@ -192,47 +255,24 @@ function stripCStyleComments(content: string): string {
         const next = i + 1 < content.length ? content[i + 1] : '';
         const isEscaped = countPrecedingBackslashes(content, i) % 2 === 1;
 
-        if (inBlockComment) {
-            if (c === '*' && next === '/') {
-                inBlockComment = false;
-                i += 2;
-                continue;
-            }
-            if (c === '\n') {
-                out += '\n';
-            }
-            i += 1;
+        if (state.inBlockComment) {
+            i += handleActiveBlockComment(state, c, next);
             continue;
         }
 
-        if (!inSingle && !inDouble && !inTemplate && c === '/' && next === '*') {
-            inBlockComment = true;
-            i += 2;
+        const consumed = handleCommentStart(state, c, next, content, i);
+        if (consumed > 0) {
+            i += consumed;
             continue;
         }
 
-        if (!inSingle && !inDouble && !inTemplate && c === '/' && next === '/') {
-            i += 2;
-            while (i < content.length && content[i] !== '\n') {
-                i += 1;
-            }
-            continue;
-        }
-
-        out += c;
-
-        if (c === "'" && !inDouble && !inTemplate && !isEscaped) {
-            inSingle = !inSingle;
-        } else if (c === '"' && !inSingle && !inTemplate && !isEscaped) {
-            inDouble = !inDouble;
-        } else if (c === '`' && !inSingle && !inDouble && !isEscaped) {
-            inTemplate = !inTemplate;
-        }
+        appendCharacter(state, c);
+        toggleStringState(state, c, isEscaped);
 
         i += 1;
     }
 
-    return out;
+    return state.out;
 }
 
 export function stripComments(content: string, extension: string): string {

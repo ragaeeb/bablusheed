@@ -46,6 +46,142 @@ function FileIcon({ extension, isDir, isExpanded }: { extension: string; isDir: 
     );
 }
 
+function TreeExpandButton({
+    hasChildren,
+    isExpanded,
+    nodeId,
+    onToggleExpand,
+}: {
+    hasChildren: boolean;
+    isExpanded: boolean;
+    nodeId: string;
+    onToggleExpand: (id: string) => void;
+}) {
+    if (!hasChildren) {
+        return <span className="h-4 w-4 shrink-0" aria-hidden="true" />;
+    }
+
+    return (
+        <button
+            type="button"
+            onClick={() => onToggleExpand(nodeId)}
+            className="flex h-4 w-4 shrink-0 items-center justify-center text-muted-foreground/60 hover:text-muted-foreground"
+            aria-label={isExpanded ? 'Collapse' : 'Expand'}
+        >
+            {isExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+        </button>
+    );
+}
+
+function TreeCheckButton({
+    ariaLabel,
+    isChecked,
+    isIndeterminate,
+    nodeId,
+    onToggleCheck,
+}: {
+    ariaLabel: string;
+    isChecked: boolean;
+    isIndeterminate: boolean;
+    nodeId: string;
+    onToggleCheck: (id: string) => void;
+}) {
+    return (
+        <>
+            {/* biome-ignore lint/a11y/useSemanticElements: custom tree checkbox uses button behavior for mixed-state interactions. */}
+            <button
+                type="button"
+                onClick={(e) => {
+                    e.stopPropagation();
+                    onToggleCheck(nodeId);
+                }}
+                role="checkbox"
+                aria-checked={isIndeterminate ? 'mixed' : isChecked ? 'true' : 'false'}
+                className="flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-sm border transition-colors"
+                style={{
+                    backgroundColor: isChecked
+                        ? 'hsl(var(--primary))'
+                        : isIndeterminate
+                          ? 'hsl(var(--primary) / 0.3)'
+                          : 'transparent',
+                    borderColor: isChecked || isIndeterminate ? 'hsl(var(--primary))' : 'hsl(var(--border))',
+                }}
+                aria-label={ariaLabel}
+            >
+                {isChecked && (
+                    <svg className="h-2 w-2 text-white" viewBox="0 0 8 8" fill="none" aria-hidden="true">
+                        <path
+                            d="M1 4l2 2 4-4"
+                            stroke="currentColor"
+                            strokeWidth="1.5"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                        />
+                    </svg>
+                )}
+                {isIndeterminate && <div className="h-0.5 w-2 rounded-full bg-primary" />}
+            </button>
+        </>
+    );
+}
+
+function TreeNameButton({
+    extension,
+    hasChildren,
+    isChecked,
+    isDir,
+    isExpanded,
+    name,
+    nodeId,
+    path,
+    onFilePreview,
+    onToggleExpand,
+}: {
+    extension: string;
+    hasChildren: boolean;
+    isChecked: boolean;
+    isDir: boolean;
+    isExpanded: boolean;
+    name: string;
+    nodeId: string;
+    path: string;
+    onFilePreview: (path: string) => void;
+    onToggleExpand: (id: string) => void;
+}) {
+    return (
+        <button
+            type="button"
+            className="flex min-w-0 flex-1 cursor-pointer items-center gap-1 pl-1 text-left"
+            onClick={() => {
+                if (hasChildren) {
+                    onToggleExpand(nodeId);
+                    return;
+                }
+                onFilePreview(path);
+            }}
+            onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.stopPropagation();
+                }
+            }}
+        >
+            <FileIcon extension={extension} isDir={isDir} isExpanded={isExpanded} />
+            <span
+                className={cn(
+                    'truncate font-mono leading-none',
+                    isDir
+                        ? 'font-medium text-foreground/80'
+                        : isChecked
+                          ? 'text-foreground'
+                          : 'text-foreground/70 group-hover:text-foreground/90',
+                )}
+            >
+                {name}
+            </span>
+        </button>
+    );
+}
+
 function TreeRow({
     item,
     tokenMap,
@@ -80,78 +216,31 @@ function TreeRow({
             )}
             style={{ paddingLeft: `${depth * 10 + 4}px` }}
         >
-            {/* Expand/collapse button */}
-            {hasChildren ? (
-                <button
-                    type="button"
-                    onClick={() => onToggleExpand(node.id)}
-                    className="flex h-4 w-4 shrink-0 items-center justify-center text-muted-foreground/60 hover:text-muted-foreground"
-                    aria-label={node.isExpanded ? 'Collapse' : 'Expand'}
-                >
-                    {node.isExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-                </button>
-            ) : (
-                <span className="h-4 w-4 shrink-0" aria-hidden="true" />
-            )}
-
-            {/* Custom checkbox — clicking only toggles check, does NOT preview */}
-            <button
-                type="button"
-                onClick={(e) => {
-                    e.stopPropagation();
-                    onToggleCheck(node.id);
-                }}
-                className="flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-sm border transition-colors"
-                style={{
-                    backgroundColor: isChecked
-                        ? 'hsl(var(--primary))'
-                        : isIndeterminate
-                          ? 'hsl(var(--primary) / 0.3)'
-                          : 'transparent',
-                    borderColor: isChecked || isIndeterminate ? 'hsl(var(--primary))' : 'hsl(var(--border))',
-                }}
-                aria-label={`Select ${node.name}`}
-            >
-                {isChecked && (
-                    <svg className="h-2 w-2 text-white" viewBox="0 0 8 8" fill="none" aria-hidden="true">
-                        <path
-                            d="M1 4l2 2 4-4"
-                            stroke="currentColor"
-                            strokeWidth="1.5"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                        />
-                    </svg>
-                )}
-                {isIndeterminate && <div className="h-0.5 w-2 rounded-full bg-primary" />}
-            </button>
-
-            {/* File icon + name — clicking a file shows preview; clicking a dir toggles expand */}
-            <button
-                type="button"
-                className="flex min-w-0 flex-1 cursor-pointer items-center gap-1 pl-1 text-left"
-                onClick={() => {
-                    if (hasChildren) {
-                        onToggleExpand(node.id);
-                    } else {
-                        onFilePreview(node.path);
-                    }
-                }}
-            >
-                <FileIcon extension={node.extension} isDir={node.isDir} isExpanded={node.isExpanded} />
-                <span
-                    className={cn(
-                        'truncate font-mono leading-none',
-                        node.isDir
-                            ? 'font-medium text-foreground/80'
-                            : isChecked
-                              ? 'text-foreground'
-                              : 'text-foreground/70 group-hover:text-foreground/90',
-                    )}
-                >
-                    {node.name}
-                </span>
-            </button>
+            <TreeExpandButton
+                hasChildren={hasChildren}
+                isExpanded={node.isExpanded}
+                nodeId={node.id}
+                onToggleExpand={onToggleExpand}
+            />
+            <TreeCheckButton
+                ariaLabel={`Select ${node.name}`}
+                isChecked={isChecked}
+                isIndeterminate={isIndeterminate}
+                nodeId={node.id}
+                onToggleCheck={onToggleCheck}
+            />
+            <TreeNameButton
+                extension={node.extension}
+                hasChildren={hasChildren}
+                isChecked={isChecked}
+                isDir={node.isDir}
+                isExpanded={node.isExpanded}
+                name={node.name}
+                nodeId={node.id}
+                path={node.path}
+                onFilePreview={onFilePreview}
+                onToggleExpand={onToggleExpand}
+            />
 
             {/* Token count badge */}
             {!node.isDir && tokens > 0 && (

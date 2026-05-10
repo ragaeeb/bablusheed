@@ -155,6 +155,7 @@ export function OutputPreview({
                     <button
                         type="button"
                         onClick={onClose}
+                        aria-label="Close preview"
                         className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                     >
                         <X className="h-3 w-3" />

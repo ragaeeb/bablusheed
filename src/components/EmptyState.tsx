@@ -61,9 +61,16 @@ export function EmptyState({ onOpenProject, onReopenLastProject, lastProjectName
                             type="button"
                             onClick={onReopenLastProject}
                             className="inline-flex h-7 items-center gap-2 rounded-md border border-border px-3 font-medium text-muted-foreground text-xs transition-colors hover:border-foreground/30 hover:text-foreground"
+                            title={`Reopen ${lastProjectName}`}
                         >
                             <RotateCcw className="h-3 w-3" />
-                            Reopen {lastProjectName}
+                            <span className="shrink-0">Reopen</span>
+                            <span
+                                className="max-w-36 overflow-hidden text-ellipsis whitespace-nowrap"
+                                title={lastProjectName}
+                            >
+                                {lastProjectName}
+                            </span>
                         </button>
                     )}
 

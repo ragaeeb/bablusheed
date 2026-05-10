@@ -15,6 +15,113 @@ type TokenBarProps = {
     advisoryMaxTokensPerFile?: number;
 };
 
+type TokenSuggestion = {
+    label: string;
+    action: () => void;
+};
+
+function getUsageState(usedTokens: number, maxTokens: number) {
+    const percentage = maxTokens > 0 ? Math.min((usedTokens / maxTokens) * 100, 100) : 0;
+    const isWarning = percentage >= 85;
+    const isError = percentage >= 100;
+    return { isError, isWarning, percentage };
+}
+
+function getBarColor(percentage: number, isWarning: boolean, isError: boolean) {
+    if (isError) {
+        return 'bg-red-500';
+    }
+    if (isWarning) {
+        return 'bg-amber-500';
+    }
+    return percentage >= 60 ? 'bg-yellow-400' : 'bg-emerald-500';
+}
+
+function getTextColor(isWarning: boolean, isError: boolean) {
+    if (isError) {
+        return 'text-red-600 dark:text-red-400';
+    }
+    if (isWarning) {
+        return 'text-amber-600 dark:text-amber-400';
+    }
+    return 'text-foreground';
+}
+
+function getStripCommentsSuggestion(
+    packOptions: PackOptions | undefined,
+    usedTokens: number,
+    onApplyOptimization?: (partial: Partial<PackOptions>) => void,
+): TokenSuggestion | null {
+    if (!packOptions || !onApplyOptimization || packOptions.stripComments) {
+        return null;
+    }
+    const savings = Math.round(usedTokens * 0.15);
+    return {
+        action: () => onApplyOptimization({ stripComments: true }),
+        label: `Strip Comments saves ~${formatTokenCount(savings)}`,
+    };
+}
+
+function getMinifyMarkdownSuggestion(
+    packOptions: PackOptions | undefined,
+    tokenMap: Map<string, number> | undefined,
+    selectedFilePaths: string[] | undefined,
+    onApplyOptimization?: (partial: Partial<PackOptions>) => void,
+): TokenSuggestion | null {
+    if (!packOptions || !tokenMap || !selectedFilePaths || !onApplyOptimization || packOptions.minifyMarkdown) {
+        return null;
+    }
+    const mdTokens = selectedFilePaths
+        .filter((path) => path.endsWith('.md') || path.endsWith('.mdx'))
+        .reduce((sum, path) => sum + (tokenMap.get(path) ?? 0), 0);
+    if (mdTokens <= 0) {
+        return null;
+    }
+    const savings = Math.round(mdTokens * 0.3);
+    return {
+        action: () => onApplyOptimization({ minifyMarkdown: true }),
+        label: `Minify Markdown saves ~${formatTokenCount(savings)}`,
+    };
+}
+
+function getDeselectHeaviestSuggestion(
+    tokenMap: Map<string, number> | undefined,
+    selectedFilePaths: string[] | undefined,
+    onDeselectHeaviest?: (count: number) => void,
+): TokenSuggestion | null {
+    if (!tokenMap || !selectedFilePaths || !onDeselectHeaviest || selectedFilePaths.length < 2) {
+        return null;
+    }
+    const sortedPaths = [...selectedFilePaths].sort((a, b) => (tokenMap.get(b) ?? 0) - (tokenMap.get(a) ?? 0));
+    const topTwoTokens = (tokenMap.get(sortedPaths[0]) ?? 0) + (tokenMap.get(sortedPaths[1]) ?? 0);
+    if (topTwoTokens <= 0) {
+        return null;
+    }
+    return {
+        action: () => onDeselectHeaviest(2),
+        label: `Deselect 2 heaviest files saves ~${formatTokenCount(topTwoTokens)}`,
+    };
+}
+
+function buildSuggestions(args: {
+    isWarning: boolean;
+    usedTokens: number;
+    packOptions?: PackOptions;
+    tokenMap?: Map<string, number>;
+    selectedFilePaths?: string[];
+    onApplyOptimization?: (partial: Partial<PackOptions>) => void;
+    onDeselectHeaviest?: (count: number) => void;
+}): TokenSuggestion[] {
+    if (!args.isWarning) {
+        return [];
+    }
+    return [
+        getStripCommentsSuggestion(args.packOptions, args.usedTokens, args.onApplyOptimization),
+        getMinifyMarkdownSuggestion(args.packOptions, args.tokenMap, args.selectedFilePaths, args.onApplyOptimization),
+        getDeselectHeaviestSuggestion(args.tokenMap, args.selectedFilePaths, args.onDeselectHeaviest),
+    ].filter((suggestion): suggestion is TokenSuggestion => suggestion !== null);
+}
+
 export function TokenBar({
     usedTokens,
     maxTokens,
@@ -27,68 +134,22 @@ export function TokenBar({
     onDeselectHeaviest,
     advisoryMaxTokensPerFile,
 }: TokenBarProps) {
-    const percentage = maxTokens > 0 ? Math.min((usedTokens / maxTokens) * 100, 100) : 0;
-    const isWarning = percentage >= 85;
-    const isError = percentage >= 100;
-
-    const barColor = isError
-        ? 'bg-red-500'
-        : isWarning
-          ? 'bg-amber-500'
-          : percentage >= 60
-            ? 'bg-yellow-400'
-            : 'bg-emerald-500';
-
-    const textColor = isError
-        ? 'text-red-600 dark:text-red-400'
-        : isWarning
-          ? 'text-amber-600 dark:text-amber-400'
-          : 'text-foreground';
-
-    // 2e: Compute actionable suggestions when over threshold
-    const suggestions: Array<{ label: string; action: () => void }> = [];
+    const { isError, isWarning, percentage } = getUsageState(usedTokens, maxTokens);
+    const barColor = getBarColor(percentage, isWarning, isError);
+    const textColor = getTextColor(isWarning, isError);
     const perPackStatus =
         advisoryMaxTokensPerFile && selectedFileCount > 0
             ? evaluatePerPackAdvisory(usedTokens, numPacks, advisoryMaxTokensPerFile)
             : null;
-
-    if (isWarning && packOptions && tokenMap && selectedFilePaths && onApplyOptimization) {
-        // Suggestion: Strip Comments
-        if (!packOptions.stripComments) {
-            // Rough estimate: comments are ~15% of code
-            const savings = Math.round(usedTokens * 0.15);
-            suggestions.push({
-                action: () => onApplyOptimization({ stripComments: true }),
-                label: `Strip Comments saves ~${formatTokenCount(savings)}`,
-            });
-        }
-
-        // Suggestion: Minify Markdown
-        if (!packOptions.minifyMarkdown) {
-            const mdTokens = selectedFilePaths
-                .filter((p) => p.endsWith('.md') || p.endsWith('.mdx'))
-                .reduce((sum, p) => sum + (tokenMap.get(p) ?? 0), 0);
-            if (mdTokens > 0) {
-                const savings = Math.round(mdTokens * 0.3);
-                suggestions.push({
-                    action: () => onApplyOptimization({ minifyMarkdown: true }),
-                    label: `Minify Markdown saves ~${formatTokenCount(savings)}`,
-                });
-            }
-        }
-
-        // Suggestion: Deselect 2 heaviest files
-        if (onDeselectHeaviest && selectedFilePaths.length >= 2) {
-            const sorted = [...selectedFilePaths].sort((a, b) => (tokenMap.get(b) ?? 0) - (tokenMap.get(a) ?? 0));
-            const top2Tokens = (tokenMap.get(sorted[0]) ?? 0) + (tokenMap.get(sorted[1]) ?? 0);
-            if (top2Tokens > 0) {
-                suggestions.push({
-                    action: () => onDeselectHeaviest(2),
-                    label: `Deselect 2 heaviest files saves ~${formatTokenCount(top2Tokens)}`,
-                });
-            }
-        }
-    }
+    const suggestions = buildSuggestions({
+        isWarning,
+        onApplyOptimization,
+        onDeselectHeaviest,
+        packOptions,
+        selectedFilePaths,
+        tokenMap,
+        usedTokens,
+    });
 
     return (
         <div className="space-y-1.5">

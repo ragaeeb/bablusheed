@@ -5,6 +5,102 @@ import { resolveAdvisoryMaxTokensPerFile, splitOversizedFilesForPacking } from '
 import { applyOptimizationPipeline } from '@/lib/utils';
 import type { FileTreeNode, PackOptions, PackResponse } from '@/types';
 
+type Logger = (level: 'error' | 'info' | 'debug', message: string) => void;
+
+function getPackableFiles(selectedFiles: FileTreeNode[]) {
+    return selectedFiles.filter((file) => !file.isDir);
+}
+
+function getMissingSelectedPaths(selectedFiles: FileTreeNode[], sourceContents: ReadonlyMap<string, string>) {
+    return getPackableFiles(selectedFiles)
+        .map((file) => file.path)
+        .filter((path) => !sourceContents.has(path));
+}
+
+function buildRawContentMap(selectedFiles: FileTreeNode[], sourceContents: ReadonlyMap<string, string>) {
+    return new Map(getPackableFiles(selectedFiles).map((file) => [file.path, sourceContents.get(file.path) ?? '']));
+}
+
+function logAstProcessingSummary(
+    options: PackOptions,
+    rawContentMap: Map<string, string>,
+    astProcessedContentMap: Map<string, string>,
+    onLog?: Logger,
+) {
+    if (!options.astDeadCode || !options.entryPoint) {
+        return;
+    }
+    let changedFiles = 0;
+    let charDelta = 0;
+    for (const [path, raw] of rawContentMap) {
+        const processed = astProcessedContentMap.get(path) ?? '';
+        if (processed !== raw) {
+            changedFiles += 1;
+            charDelta += processed.length - raw.length;
+        }
+    }
+    onLog?.('info', `pack ast processed files=${rawContentMap.size} changed=${changedFiles} charDelta=${charDelta}`);
+}
+
+function buildOptimizedContentMap(
+    selectedFiles: FileTreeNode[],
+    astProcessedContentMap: Map<string, string>,
+    options: PackOptions,
+) {
+    const contentMap = new Map<string, string>();
+    for (const file of getPackableFiles(selectedFiles)) {
+        const baseContent = astProcessedContentMap.get(file.path) ?? '';
+        const content = applyOptimizationPipeline(baseContent, file.extension, file.relativePath, options);
+        contentMap.set(file.path, content);
+    }
+    return contentMap;
+}
+
+function buildPackFiles(
+    selectedFiles: FileTreeNode[],
+    contentMap: Map<string, string>,
+    tokenMap?: Map<string, number>,
+) {
+    return getPackableFiles(selectedFiles).map((file) => ({
+        content: contentMap.get(file.path) ?? '',
+        path: file.relativePath,
+        tokenCount: tokenMap?.get(file.path),
+    }));
+}
+
+function logPackStart(selectedFileCount: number, llmProfileId: string, options: PackOptions, onLog?: Logger) {
+    onLog?.(
+        'info',
+        `pack start selected=${selectedFileCount} llm=${llmProfileId} numPacks=${options.numPacks} format=${options.outputFormat} ast=${options.astDeadCode && !!options.entryPoint}`,
+    );
+}
+
+function getMissingContentMessage(missingPaths: string[]) {
+    const preview = missingPaths.slice(0, 3).join(', ');
+    const overflow = missingPaths.length > 3 ? ` (+${missingPaths.length - 3} more)` : '';
+    return `Missing content for ${missingPaths.length} selected file(s): ${preview}${overflow}`;
+}
+
+async function getAstProcessedContentMap(
+    options: PackOptions,
+    selectedFiles: FileTreeNode[],
+    rawContentMap: Map<string, string>,
+) {
+    if (!options.astDeadCode || !options.entryPoint) {
+        return rawContentMap;
+    }
+    return applyAstDeadCode(selectedFiles, rawContentMap, options.entryPoint);
+}
+
+function preparePackFiles(
+    selectedFiles: FileTreeNode[],
+    sourceContents: ReadonlyMap<string, string>,
+    tokenMap?: Map<string, number>,
+) {
+    const rawContentMap = buildRawContentMap(selectedFiles, sourceContents);
+    return { rawContentMap, tokenMap };
+}
+
 export function usePackager(
     selectedFiles: FileTreeNode[],
     fileContents: Map<string, string>,
@@ -22,7 +118,8 @@ export function usePackager(
         options: PackOptions,
         contentOverrides?: ReadonlyMap<string, string>,
     ): Promise<PackResponse | null> => {
-        if (selectedFiles.length === 0) {
+        const packableFiles = getPackableFiles(selectedFiles);
+        if (packableFiles.length === 0) {
             return null;
         }
 
@@ -30,72 +127,25 @@ export function usePackager(
         setPackError(null);
         setPackResult(null);
         setPackWarnings([]);
-        onLog?.(
-            'info',
-            `pack start selected=${selectedFiles.filter((f) => !f.isDir).length} llm=${llmProfileId} numPacks=${options.numPacks} format=${options.outputFormat} ast=${options.astDeadCode && !!options.entryPoint}`,
-        );
+        logPackStart(packableFiles.length, llmProfileId, options, onLog);
 
         try {
             const sourceContents = contentOverrides ?? fileContents;
-            const missingPaths = selectedFiles
-                .filter((file) => !file.isDir)
-                .map((file) => file.path)
-                .filter((path) => !sourceContents.has(path));
+            const missingPaths = getMissingSelectedPaths(selectedFiles, sourceContents);
 
             if (missingPaths.length > 0) {
-                const preview = missingPaths.slice(0, 3).join(', ');
-                const overflow = missingPaths.length > 3 ? ` (+${missingPaths.length - 3} more)` : '';
-                const message = `Missing content for ${missingPaths.length} selected file(s): ${preview}${overflow}`;
+                const message = getMissingContentMessage(missingPaths);
                 setPackError(message);
                 onLog?.('error', `pack blocked missing-content count=${missingPaths.length}`);
                 return null;
             }
 
-            const rawContentMap = new Map<string, string>();
-            for (const file of selectedFiles) {
-                if (file.isDir) {
-                    continue;
-                }
-                rawContentMap.set(file.path, sourceContents.get(file.path) ?? '');
-            }
+            const { rawContentMap } = preparePackFiles(selectedFiles, sourceContents, tokenMap);
+            const astProcessedContentMap = await getAstProcessedContentMap(options, selectedFiles, rawContentMap);
+            logAstProcessingSummary(options, rawContentMap, astProcessedContentMap, onLog);
 
-            const astProcessedContentMap =
-                options.astDeadCode && options.entryPoint
-                    ? await applyAstDeadCode(selectedFiles, rawContentMap, options.entryPoint)
-                    : rawContentMap;
-            if (options.astDeadCode && options.entryPoint) {
-                let changedFiles = 0;
-                let charDelta = 0;
-                for (const [path, raw] of rawContentMap) {
-                    const processed = astProcessedContentMap.get(path) ?? '';
-                    if (processed !== raw) {
-                        changedFiles += 1;
-                        charDelta += processed.length - raw.length;
-                    }
-                }
-                onLog?.(
-                    'info',
-                    `pack ast processed files=${rawContentMap.size} changed=${changedFiles} charDelta=${charDelta}`,
-                );
-            }
-
-            const contentMap = new Map<string, string>();
-            for (const file of selectedFiles) {
-                if (file.isDir) {
-                    continue;
-                }
-                const baseContent = astProcessedContentMap.get(file.path) ?? '';
-                const content = applyOptimizationPipeline(baseContent, file.extension, file.relativePath, options);
-                contentMap.set(file.path, content);
-            }
-
-            const files = selectedFiles
-                .filter((f) => !f.isDir)
-                .map((file) => ({
-                    content: contentMap.get(file.path) ?? '',
-                    path: file.relativePath,
-                    tokenCount: tokenMap?.get(file.path),
-                }));
+            const contentMap = buildOptimizedContentMap(selectedFiles, astProcessedContentMap, options);
+            const files = buildPackFiles(selectedFiles, contentMap, tokenMap);
 
             const advisoryMaxTokensPerFile = resolveAdvisoryMaxTokensPerFile(
                 options.maxTokensPerPackFile,

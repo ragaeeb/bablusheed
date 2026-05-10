@@ -27,11 +27,11 @@
         "lucide-react": "^1.14.0",
         "react": "^19.2.6",
         "react-dom": "^19.2.6",
-        "tailwind-merge": "^3.5.0"
+        "tailwind-merge": "^3.6.0"
     },
     "description": "Tauri desktop app that packs project files into token-aware, LLM-friendly bundles.",
     "devDependencies": {
-        "@biomejs/biome": "^2.4.14",
+        "@biomejs/biome": "^2.4.15",
         "@semantic-release/changelog": "^6.0.3",
         "@semantic-release/commit-analyzer": "^13.0.1",
         "@semantic-release/exec": "^7.1.0",
@@ -75,8 +75,8 @@
         "build": "tauri build",
         "ci": "bun run lint && bun run typecheck && bun test && cargo test --manifest-path src-tauri/Cargo.toml && bun run vite:build && cargo check --manifest-path src-tauri/Cargo.toml",
         "dev": "tauri dev",
-        "format": "biome check . --write && biome lint . --write",
-        "lint": "biome lint . --write --unsafe",
+        "format": "biome format . --write && biome check . --write",
+        "lint": "biome lint .",
         "preview": "vite preview",
         "release": "semantic-release",
         "sync:icons": "bun scripts/sync-icons.ts",
