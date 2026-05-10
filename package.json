@@ -32,7 +32,6 @@
     "description": "Tauri desktop app that packs project files into token-aware, LLM-friendly bundles.",
     "devDependencies": {
         "@biomejs/biome": "^2.4.14",
-        "@commitlint/config-conventional": "^21.0.0",
         "@semantic-release/changelog": "^6.0.3",
         "@semantic-release/commit-analyzer": "^13.0.1",
         "@semantic-release/exec": "^7.1.0",
