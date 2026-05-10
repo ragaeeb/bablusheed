@@ -1,102 +1,104 @@
-export interface FileNode {
-  id: string;
-  path: string;
-  relativePath: string;
-  name: string;
-  extension: string;
-  size: number;
-  isDir: boolean;
-  children?: FileNode[];
+export type FileNode = {
+    id: string;
+    path: string;
+    relativePath: string;
+    name: string;
+    extension: string;
+    size: number;
+    isDir: boolean;
+    children?: FileNode[];
+};
+
+export type CheckState = 'checked' | 'unchecked' | 'indeterminate';
+
+export interface FileTreeNode extends Omit<FileNode, 'children'> {
+    checkState: CheckState;
+    tokenCount: number;
+    depth: number;
+    isExpanded: boolean;
+    children?: FileTreeNode[];
 }
 
-export type CheckState = "checked" | "unchecked" | "indeterminate";
+export type FlatTreeItem = {
+    node: FileTreeNode;
+    depth: number;
+    hasChildren: boolean;
+};
 
-export interface FileTreeNode extends Omit<FileNode, "children"> {
-  checkState: CheckState;
-  tokenCount: number;
-  depth: number;
-  isExpanded: boolean;
-  children?: FileTreeNode[];
-}
+export type PackOptions = {
+    numPacks: number;
+    maxTokensPerPackFile: number;
+    outputFormat: 'plaintext' | 'markdown';
+    stripComments: boolean;
+    reduceWhitespace: boolean;
+    astDeadCode: boolean;
+    entryPoint: string | null;
+    minifyMarkdown: boolean;
+    stripMarkdownHeadings: boolean;
+    stripMarkdownBlockquotes: boolean;
+    respectGitignore: boolean;
+    customIgnorePatterns: string;
+};
 
-export interface FlatTreeItem {
-  node: FileTreeNode;
-  depth: number;
-  hasChildren: boolean;
-}
+export type PackRequest = {
+    files: Array<{
+        path: string;
+        content: string;
+        tokenCount?: number;
+    }>;
+    numPacks: number;
+    outputFormat: 'plaintext' | 'markdown';
+    llmProfileId: string;
+};
 
-export interface PackOptions {
-  numPacks: number;
-  maxTokensPerPackFile: number;
-  outputFormat: "plaintext" | "markdown";
-  stripComments: boolean;
-  reduceWhitespace: boolean;
-  astDeadCode: boolean;
-  entryPoint: string | null;
-  minifyMarkdown: boolean;
-  stripMarkdownHeadings: boolean;
-  stripMarkdownBlockquotes: boolean;
-  respectGitignore: boolean;
-  customIgnorePatterns: string;
-}
+export type PackItem = {
+    index: number;
+    content: string;
+    estimatedTokens: number;
+    fileCount: number;
+    filePaths: string[];
+};
 
-export interface PackRequest {
-  files: Array<{
+export type PackResponse = {
+    outputFormat: 'plaintext' | 'markdown';
+    packs: PackItem[];
+    totalTokens: number;
+};
+
+export type FileContent = {
     path: string;
     content: string;
     tokenCount?: number;
-  }>;
-  numPacks: number;
-  outputFormat: "plaintext" | "markdown";
-  llmProfileId: string;
-}
+};
 
-export interface PackItem {
-  index: number;
-  content: string;
-  estimatedTokens: number;
-  fileCount: number;
-  filePaths: string[];
-}
+export type ReachabilityResult = {
+    reachable_symbols: Record<string, string[]>;
+    unreachable_symbols: Record<string, string[]>;
+};
 
-export interface PackResponse {
-  outputFormat: "plaintext" | "markdown";
-  packs: PackItem[];
-  totalTokens: number;
-}
+export type AppSettings = {
+    lastProjectPath: string | null;
+    lastLlmProfileId: string;
+    packOptions: PackOptions;
+    theme: 'dark' | 'light';
+};
 
-export interface FileContent {
-  path: string;
-  content: string;
-  tokenCount?: number;
-}
+export type TokenCountResult = {
+    path: string;
+    tokens: number;
+};
 
-export interface ReachabilityResult {
-  reachable_symbols: Record<string, string[]>;
-  unreachable_symbols: Record<string, string[]>;
-}
+export type WorkerMessage = {
+    type: 'count';
+    requestId: number;
+    files: Array<{ path: string; content: string }>;
+    strategy: TiktokenEncoding | 'approx';
+};
 
-export interface AppSettings {
-  lastProjectPath: string | null;
-  lastLlmProfileId: string;
-  packOptions: PackOptions;
-  theme: "dark" | "light";
-}
+export type WorkerResult = {
+    type: 'result';
+    requestId: number;
+    results: TokenCountResult[];
+};
 
-export interface TokenCountResult {
-  path: string;
-  tokens: number;
-}
-
-export interface WorkerMessage {
-  type: "count";
-  requestId: number;
-  files: Array<{ path: string; content: string }>;
-  strategy: "openai" | "approx";
-}
-
-export interface WorkerResult {
-  type: "result";
-  requestId: number;
-  results: TokenCountResult[];
-}
+import type { TiktokenEncoding } from 'js-tiktoken';
